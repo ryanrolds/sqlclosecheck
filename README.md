@@ -1,7 +1,6 @@
 # sqlclosecheck
 
-# Template:
-[![ryanrolds](https://circleci.com/github/ryanrolds/sqlclosecheck.svg?style=svg)](https://app.circleci.com/pipelines/github/ryanrolds/sqlrowsclose)
+[![ryanrolds](https://circleci.com/gh/ryanrolds/sqlclosecheck.svg?style=svg)](https://app.circleci.com/pipelines/github/ryanrolds/sqlrowsclose)
 
 Linter that checks if SQL rows/statements are closed. Unclosed rows and statements may
 cause DB connection pool exhaustion.
