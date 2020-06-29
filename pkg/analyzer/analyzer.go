@@ -13,7 +13,6 @@ import (
 const (
 	rowsName    = "Rows"
 	stmtName    = "Stmt"
-	errMethod   = "Err"
 	closeMethod = "Close"
 )
 
@@ -37,23 +36,17 @@ func NewAnalyzer() *analysis.Analyzer {
 func NewRun(sqlPkgs []string) func(pass *analysis.Pass) (interface{}, error) {
 	return func(pass *analysis.Pass) (interface{}, error) {
 		for _, sqlPkg := range sqlPkgs {
-			checker := newChecker()
-			checker.run(pass, sqlPkg)
+			_, err := run(pass, sqlPkg)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return nil, nil
 	}
 }
 
-type checker struct {
-	sqlPkg string
-}
-
-func newChecker() *checker {
-	return &checker{}
-}
-
-func (c *checker) run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
+func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 	pssa := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
 	// Check for our target types and build list
@@ -67,7 +60,7 @@ func (c *checker) run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 	funcs := pssa.SrcFuncs
 	for _, f := range funcs {
 		// Check if function imports the target SQL package
-		if importsSQLPackage(pass, f, sqlPkg) == false {
+		if !importsSQLPackage(pass, f, sqlPkg) {
 			continue
 		}
 
@@ -88,7 +81,7 @@ func (c *checker) run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 					}
 
 					isClosed := checkClosed(refs)
-					if isClosed == false {
+					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
 					}
 				}
