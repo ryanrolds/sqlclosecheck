@@ -1,6 +1,6 @@
 module github.com/ryanrolds/sqlclosecheck
 
-go 1.14
+go 1.13
 
 require (
 	github.com/gostaticanalysis/analysisutil v0.1.0
