@@ -2,9 +2,7 @@ package analyzer
 
 import (
 	"go/types"
-	"strconv"
 
-	"github.com/gostaticanalysis/analysisutil"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -59,11 +57,6 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 
 	funcs := pssa.SrcFuncs
 	for _, f := range funcs {
-		// Check if function imports the target SQL package
-		if !importsSQLPackage(pass, f, sqlPkg) {
-			continue
-		}
-
 		for _, b := range f.Blocks {
 			for i := range b.Instrs {
 				// Check if instruction is call that returns a target type
@@ -80,7 +73,7 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 						continue
 					}
 
-					isClosed := checkClosed(refs)
+					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
 					}
@@ -130,32 +123,6 @@ func getTypePointerFromName(pkg *ssa.Package, name string) *types.Pointer {
 	return types.NewPointer(named)
 }
 
-func importsSQLPackage(pass *analysis.Pass, f *ssa.Function, sqlPkg string) bool {
-	obj := f.Object()
-	if obj == nil {
-		return false
-	}
-
-	file := analysisutil.File(pass, obj.Pos())
-	if file == nil {
-		return false
-	}
-
-	for _, impt := range file.Imports {
-		path, err := strconv.Unquote(impt.Path.Value)
-		if err != nil {
-			continue
-		}
-
-		path = analysisutil.RemoveVendor(path)
-		if sqlPkg == path {
-			return true
-		}
-	}
-
-	return false
-}
-
 type targetValue struct {
 	value *ssa.Value
 	instr ssa.Instruction
@@ -202,25 +169,54 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []*types.Pointer
 	return targetValues
 }
 
-func checkClosed(refs *[]ssa.Instruction) bool {
+func checkClosed(refs *[]ssa.Instruction, targetTypes []*types.Pointer) bool {
 	isClosed := false
 
 	for _, refs := range *refs {
-		return isCloseCall(refs)
+		if isCloseCall(refs, targetTypes) {
+			isClosed = true
+		}
 	}
 
 	return isClosed
 }
 
-func isCloseCall(call ssa.Instruction) bool {
-	switch call := call.(type) {
+func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
+	switch instr := instr.(type) {
 	case *ssa.Defer:
-		if call.Call.Value != nil && call.Call.Value.Name() == closeMethod {
+		if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
 			return true
 		}
 	case *ssa.Call:
-		if call.Call.Value != nil && call.Call.Value.Name() == closeMethod {
+		if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
 			return true
+		}
+	case *ssa.Store:
+		if len(*instr.Addr.Referrers()) == 0 {
+			return false
+		}
+
+		for _, aRef := range *instr.Addr.Referrers() {
+			if c, ok := aRef.(*ssa.MakeClosure); ok {
+				f := c.Fn.(*ssa.Function)
+
+				for _, b := range f.Blocks {
+					for _, innerInstr := range b.Instrs {
+						switch innerInstr := innerInstr.(type) {
+						case *ssa.UnOp:
+							instrType := innerInstr.Type()
+							for _, targetType := range targetTypes {
+								if types.Identical(instrType, targetType) {
+									isClosed := checkClosed(innerInstr.Referrers(), targetTypes)
+									if isClosed {
+										return true
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
