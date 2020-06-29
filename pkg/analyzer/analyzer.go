@@ -66,16 +66,10 @@ func (c *checker) run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 
 	funcs := pssa.SrcFuncs
 	for _, f := range funcs {
-		//pass.Reportf(f.Pos(), "found function %s", f.Name())
-
 		// Check if function imports the target SQL package
 		if importsSQLPackage(pass, f, sqlPkg) == false {
 			continue
 		}
-
-		// TODO do we need to check if types are returned as references?
-
-		//pass.Reportf(f.Pos(), "func %s imports %s", f.Name(), sqlPkg)
 
 		for _, b := range f.Blocks {
 			for i := range b.Instrs {

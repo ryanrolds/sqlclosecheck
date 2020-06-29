@@ -14,7 +14,7 @@ var (
 
 func main() {
 	// In normal use, create one Stmt when your process starts.
-	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?")
+	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?") // want "Rows/Stmt was not closed"
 	if err != nil {
 		log.Fatal(err)
 	}
