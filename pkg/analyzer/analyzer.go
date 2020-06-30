@@ -77,6 +77,8 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
 					}
+
+					checkDeferred(pass, refs, targetTypes, false)					
 				}
 			}
 		}
@@ -221,4 +223,47 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 	}
 
 	return false
+}
+
+func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes []*types.Pointer, inDefer bool) {
+	for _, instr := range *instrs {
+		switch instr := instr.(type) {
+		case *ssa.Defer:
+			if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
+				return
+			}
+		case *ssa.Call:
+			if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
+				if !inDefer {
+					pass.Reportf(instr.Pos(), "Close should use defer")
+				}
+	
+				return
+			}
+		case *ssa.Store:
+			if len(*instr.Addr.Referrers()) == 0 {
+				return
+			}
+	
+			for _, aRef := range *instr.Addr.Referrers() {
+				if c, ok := aRef.(*ssa.MakeClosure); ok {
+					f := c.Fn.(*ssa.Function)
+	
+					for _, b := range f.Blocks {
+						for _, innerInstr := range b.Instrs {
+							switch innerInstr := innerInstr.(type) {
+							case *ssa.UnOp:
+								instrType := innerInstr.Type()
+								for _, targetType := range targetTypes {
+									if types.Identical(instrType, targetType) {
+										checkDeferred(pass, innerInstr.Referrers(), targetTypes, true)
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
