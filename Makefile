@@ -6,8 +6,11 @@ build:
 install:
 	go install
 
-test:
+test: build install
 	go test ./...
+	# Due to an issue with importing in a anaylsistest's test data some hoop jumping is required
+	-go vet -vettool=${GOPATH}/bin/sqlclosecheck ./testdata/sqlx_examples 2>&1 | tee sqlx_examples_results.txt
+	diff -a sqlx_examples_results.txt ./testdata/sqlx_examples/expected_results.txt
 
 lint:
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.27.0

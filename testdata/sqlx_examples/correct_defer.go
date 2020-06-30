@@ -3,8 +3,6 @@ package sqlx_examples
 import (
 	"log"
 	"strings"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
 func correctDefer() {
@@ -13,6 +11,7 @@ func correctDefer() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer rows.Close()
 
 	names := make([]string, 0)

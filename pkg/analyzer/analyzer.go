@@ -1,9 +1,7 @@
 package analyzer
 
 import (
-	"fmt"
 	"go/types"
-	"log"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -27,31 +25,18 @@ func NewAnalyzer() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "sqlclosecheck",
 		Doc:  "Checks that sql.Rows and sql.Stmt are closed.",
-		Run:  NewRun(sqlPackages),
+		Run:  run,
 		Requires: []*analysis.Analyzer{
 			buildssa.Analyzer,
 		},
 	}
 }
 
-func NewRun(sqlPkgs []string) func(pass *analysis.Pass) (interface{}, error) {
-	return func(pass *analysis.Pass) (interface{}, error) {
-		for _, sqlPkg := range sqlPkgs {
-			_, err := run(pass, sqlPkg)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		return nil, nil
-	}
-}
-
-func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
+func run(pass *analysis.Pass) (interface{}, error) {
 	pssa := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
-	// Check for our target types and build list
-	targetTypes := getTargetTypes(pssa, sqlPkg)
+	// Build list of types we are looking for
+	targetTypes := getTargetTypes(pssa, sqlPackages)
 
 	// If non of the types are found, skip
 	if len(targetTypes) == 0 {
@@ -76,8 +61,6 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 						continue
 					}
 
-					log.Print(refs)
-
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
@@ -92,23 +75,25 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 	return nil, nil
 }
 
-func getTargetTypes(pssa *buildssa.SSA, sqlPkg string) []*types.Pointer {
+func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []*types.Pointer {
 	targets := []*types.Pointer{}
 
-	pkg := pssa.Pkg.Prog.ImportedPackage(sqlPkg)
-	if pkg == nil {
-		// the SQL package being checked isn't imported
-		return targets
-	}
+	for _, sqlPkg := range targetPackages {
+		pkg := pssa.Pkg.Prog.ImportedPackage(sqlPkg)
+		if pkg == nil {
+			// the SQL package being checked isn't imported
+			return targets
+		}
 
-	rowsType := getTypePointerFromName(pkg, rowsName)
-	if rowsType != nil {
-		targets = append(targets, rowsType)
-	}
+		rowsType := getTypePointerFromName(pkg, rowsName)
+		if rowsType != nil {
+			targets = append(targets, rowsType)
+		}
 
-	stmtType := getTypePointerFromName(pkg, stmtName)
-	if stmtType != nil {
-		targets = append(targets, stmtType)
+		stmtType := getTypePointerFromName(pkg, stmtName)
+		if stmtType != nil {
+			targets = append(targets, stmtType)
+		}
 	}
 
 	return targets
@@ -208,7 +193,6 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 				f := c.Fn.(*ssa.Function)
 
 				for _, b := range f.Blocks {
-					log.Print("calling checkClosed in Store")
 					isClosed := checkClosed(&b.Instrs, targetTypes)
 					if isClosed {
 						return true
@@ -217,14 +201,9 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 			}
 		}
 	case *ssa.UnOp:
-		log.Printf("%s", instr.Type())
-		log.Printf("%s", instr.Referrers())
-
 		instrType := instr.Type()
 		for _, targetType := range targetTypes {
-			log.Printf("targetType %s", targetType)
 			if types.Identical(instrType, targetType) {
-				log.Print("calling checkClosed in UnOp")
 				isClosed := checkClosed(instr.Referrers(), targetTypes)
 				if isClosed {
 					return true
@@ -232,24 +211,10 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 			}
 		}
 	case *ssa.FieldAddr:
-		//log.Printf("field addr %s", instr)
-		//log.Printf("x %s", instr.X.Referrers())
-		//log.Printf("referrers %T", (*instr.Referrers())[0])
-
 		isClosed := checkClosed(instr.Referrers(), targetTypes)
 		if isClosed {
 			return true
 		}
-
-		//op := (*instr.Referrers())[0]
-		//switch op := op.(type) {
-		//case *ssa.UnOp:
-		//	log.Printf("%s", op.Type())
-		//	log.Printf("%s", op.Referrers())
-		//	log.Printf("%b", checkClosed(op.Referrers(), targetTypes))
-		//}
-	default:
-		log.Printf("default %s %s", fmt.Sprintf("%T", instr), instr)
 	}
 
 	return false
@@ -280,20 +245,19 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 					f := c.Fn.(*ssa.Function)
 
 					for _, b := range f.Blocks {
-						for _, innerInstr := range b.Instrs {
-							switch innerInstr := innerInstr.(type) {
-							case *ssa.UnOp:
-								instrType := innerInstr.Type()
-								for _, targetType := range targetTypes {
-									if types.Identical(instrType, targetType) {
-										checkDeferred(pass, innerInstr.Referrers(), targetTypes, true)
-									}
-								}
-							}
-						}
+						checkDeferred(pass, &b.Instrs, targetTypes, true)
 					}
 				}
 			}
+		case *ssa.UnOp:
+			instrType := instr.Type()
+			for _, targetType := range targetTypes {
+				if types.Identical(instrType, targetType) {
+					checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
+				}
+			}
+		case *ssa.FieldAddr:
+			checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
 		}
 	}
 }
