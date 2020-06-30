@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -53,14 +54,11 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
+				log.Printf("%s", f.Name())
+
+				// For each found target check if they are closed and deferred
 				for _, targetValue := range targetValues {
-					//pass.Reportf(targetValues.Pos(), "found values of the target type")
-
 					refs := (*targetValue.value).Referrers()
-					if len(*refs) == 0 {
-						continue
-					}
-
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
@@ -132,26 +130,29 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []*types.Pointer
 	signature := call.Call.Signature()
 	results := signature.Results()
 	for i := 0; i < results.Len(); i++ {
+		v := results.At(i)
+		varType := v.Type()
+
 		for _, targetType := range targetTypes {
-			v := results.At(i)
-			varType := v.Type()
-			if types.Identical(varType, targetType) {
-				for _, cRef := range *call.Referrers() {
-					switch instr := cRef.(type) {
-					case *ssa.Call:
-						if len(instr.Call.Args) == 1 && types.Identical(instr.Call.Args[0].Type(), targetType) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr.Call.Args[0],
-								instr: call,
-							})
-						}
-					case ssa.Value:
-						if types.Identical(instr.Type(), targetType) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr,
-								instr: call,
-							})
-						}
+			if !types.Identical(varType, targetType) {
+				continue
+			}
+
+			for _, cRef := range *call.Referrers() {
+				switch instr := cRef.(type) {
+				case *ssa.Call:
+					if len(instr.Call.Args) >= 1 && types.Identical(instr.Call.Args[0].Type(), targetType) {
+						targetValues = append(targetValues, targetValue{
+							value: &instr.Call.Args[0],
+							instr: call,
+						})
+					}
+				case ssa.Value:
+					if types.Identical(instr.Type(), targetType) {
+						targetValues = append(targetValues, targetValue{
+							value: &instr,
+							instr: call,
+						})
 					}
 				}
 			}
@@ -164,8 +165,10 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []*types.Pointer
 func checkClosed(refs *[]ssa.Instruction, targetTypes []*types.Pointer) bool {
 	isClosed := false
 
-	for _, refs := range *refs {
-		if isCloseCall(refs, targetTypes) {
+	for _, ref := range *refs {
+		log.Printf("%T - %s", ref, ref)
+
+		if isCloseCall(ref, targetTypes) {
 			isClosed = true
 		}
 	}
@@ -176,11 +179,21 @@ func checkClosed(refs *[]ssa.Instruction, targetTypes []*types.Pointer) bool {
 func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 	switch instr := instr.(type) {
 	case *ssa.Defer:
-		if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
+		if instr.Call.Value == nil {
+			return false
+		}
+
+		name := instr.Call.Value.Name()
+		if name == closeMethod {
 			return true
 		}
 	case *ssa.Call:
-		if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
+		if instr.Call.Value == nil {
+			return false
+		}
+
+		name := instr.Call.Value.Name()
+		if name == closeMethod {
 			return true
 		}
 	case *ssa.Store:
@@ -215,6 +228,10 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 		if isClosed {
 			return true
 		}
+	case *ssa.Return:
+		return true
+	default:
+		//log.Printf("%s", instr)
 	}
 
 	return false
