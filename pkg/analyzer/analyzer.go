@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -17,6 +18,7 @@ const (
 var (
 	sqlPackages = []string{
 		"database/sql",
+		"github.com/jmoiron/sqlx",
 	}
 )
 
@@ -73,12 +75,14 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 						continue
 					}
 
+					log.Print(refs)
+
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
 					}
 
-					checkDeferred(pass, refs, targetTypes, false)					
+					checkDeferred(pass, refs, targetTypes, false)
 				}
 			}
 		}
@@ -220,6 +224,8 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 				}
 			}
 		}
+	default:
+		log.Print(instr)
 	}
 
 	return false
@@ -237,18 +243,18 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 				if !inDefer {
 					pass.Reportf(instr.Pos(), "Close should use defer")
 				}
-	
+
 				return
 			}
 		case *ssa.Store:
 			if len(*instr.Addr.Referrers()) == 0 {
 				return
 			}
-	
+
 			for _, aRef := range *instr.Addr.Referrers() {
 				if c, ok := aRef.(*ssa.MakeClosure); ok {
 					f := c.Fn.(*ssa.Function)
-	
+
 					for _, b := range f.Blocks {
 						for _, innerInstr := range b.Instrs {
 							switch innerInstr := innerInstr.(type) {

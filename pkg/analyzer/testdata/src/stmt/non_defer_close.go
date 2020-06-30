@@ -5,13 +5,13 @@ import (
 	"log"
 )
 
-func non_defer_close() {
+func nonDeferClose() {
 	// In normal use, create one Stmt when your process starts.
 	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?")
 	if err != nil {
 		log.Fatal(err)
 	}
-	
+
 	// Then reuse it each time you need to issue the query.
 	id := 43
 	var username string

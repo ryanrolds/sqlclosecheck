@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func missing_close() {
+func missingClose() {
 	age := 27
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age) // want "Rows/Stmt was not closed"
 	if err != nil {
