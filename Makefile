@@ -1,7 +1,7 @@
 PHONY: build install test
 
 build:
-	go build -o sqlclosecheck cmd/sqlclosecheck/main.go
+	go build
 
 install:
 	go install
