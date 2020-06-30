@@ -28,6 +28,6 @@ go vet -vettool=${GOPATH}/bin/sqlclosecheck ./...
 
 * ~~Get linter working~~
 * ~~Added some basic test cases~~
-* Require that Close deferred
+* Require that Close be deferred
 * Test across a bunch of projects
 * Introduce linter to [golangci-lint](https://github.com/golangci/golangci-lint).
