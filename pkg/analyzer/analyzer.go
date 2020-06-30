@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"go/types"
 	"log"
 
@@ -207,25 +208,48 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 				f := c.Fn.(*ssa.Function)
 
 				for _, b := range f.Blocks {
-					for _, innerInstr := range b.Instrs {
-						switch innerInstr := innerInstr.(type) {
-						case *ssa.UnOp:
-							instrType := innerInstr.Type()
-							for _, targetType := range targetTypes {
-								if types.Identical(instrType, targetType) {
-									isClosed := checkClosed(innerInstr.Referrers(), targetTypes)
-									if isClosed {
-										return true
-									}
-								}
-							}
-						}
+					log.Print("calling checkClosed in Store")
+					isClosed := checkClosed(&b.Instrs, targetTypes)
+					if isClosed {
+						return true
 					}
 				}
 			}
 		}
+	case *ssa.UnOp:
+		log.Printf("%s", instr.Type())
+		log.Printf("%s", instr.Referrers())
+
+		instrType := instr.Type()
+		for _, targetType := range targetTypes {
+			log.Printf("targetType %s", targetType)
+			if types.Identical(instrType, targetType) {
+				log.Print("calling checkClosed in UnOp")
+				isClosed := checkClosed(instr.Referrers(), targetTypes)
+				if isClosed {
+					return true
+				}
+			}
+		}
+	case *ssa.FieldAddr:
+		//log.Printf("field addr %s", instr)
+		//log.Printf("x %s", instr.X.Referrers())
+		//log.Printf("referrers %T", (*instr.Referrers())[0])
+
+		isClosed := checkClosed(instr.Referrers(), targetTypes)
+		if isClosed {
+			return true
+		}
+
+		//op := (*instr.Referrers())[0]
+		//switch op := op.(type) {
+		//case *ssa.UnOp:
+		//	log.Printf("%s", op.Type())
+		//	log.Printf("%s", op.Referrers())
+		//	log.Printf("%b", checkClosed(op.Referrers(), targetTypes))
+		//}
 	default:
-		log.Print(instr)
+		log.Printf("default %s %s", fmt.Sprintf("%T", instr), instr)
 	}
 
 	return false
