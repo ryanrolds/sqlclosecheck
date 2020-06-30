@@ -17,6 +17,13 @@ In your project directory:
 go vet -vettool=$(which sqlclosecheck) ./...
 ```
 
+## CI
+
+```
+go install github.com/ryanrolds/sqlclosecheck
+go vet -vettool=${GOPATH}/bin/sqlclosecheck ./...
+```
+
 ## Roadmap
 
 * ~~Get linter working~~
