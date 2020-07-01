@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"go/types"
-	"log"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -54,7 +53,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					continue
 				}
 
-				log.Printf("%s", f.Name())
+				// log.Printf("%s", f.Name())
 
 				// For each found target check if they are closed and deferred
 				for _, targetValue := range targetValues {
@@ -163,52 +162,76 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []*types.Pointer
 }
 
 func checkClosed(refs *[]ssa.Instruction, targetTypes []*types.Pointer) bool {
-	isClosed := false
+	numInstrs := len(*refs)
+	for idx, ref := range *refs {
+		// log.Printf("%T - %s", ref, ref)
 
-	for _, ref := range *refs {
-		log.Printf("%T - %s", ref, ref)
-
-		if isCloseCall(ref, targetTypes) {
-			isClosed = true
+		action := getAction(ref, targetTypes)
+		switch action {
+		case "closed":
+			return true
+		case "passed":
+			// Passed and not used after
+			if numInstrs == idx+1 {
+				return true
+			}
+		case "returned":
+			return true
+		case "handled":
+			return true
+		default:
+			// log.Printf(action)
 		}
 	}
 
-	return isClosed
+	return false
 }
 
-func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
+func getAction(instr ssa.Instruction, targetTypes []*types.Pointer) string {
 	switch instr := instr.(type) {
 	case *ssa.Defer:
 		if instr.Call.Value == nil {
-			return false
+			return "unvalued defer"
 		}
 
 		name := instr.Call.Value.Name()
 		if name == closeMethod {
-			return true
+			return "closed"
 		}
 	case *ssa.Call:
 		if instr.Call.Value == nil {
-			return false
+			return "unvalued call"
+		}
+
+		isTarget := false
+		receiver := instr.Call.StaticCallee().Signature.Recv()
+		if receiver != nil {
+			isTarget = isTargetType(receiver.Type(), targetTypes)
 		}
 
 		name := instr.Call.Value.Name()
-		if name == closeMethod {
-			return true
+		if isTarget && name == closeMethod {
+			return "closed"
 		}
+
+		if !isTarget {
+			return "passed"
+		}
+	case *ssa.Phi:
+		return "passed"
+	case *ssa.MakeInterface:
+		return "passed"
 	case *ssa.Store:
 		if len(*instr.Addr.Referrers()) == 0 {
-			return false
+			return "noop"
 		}
 
 		for _, aRef := range *instr.Addr.Referrers() {
 			if c, ok := aRef.(*ssa.MakeClosure); ok {
 				f := c.Fn.(*ssa.Function)
-
 				for _, b := range f.Blocks {
-					isClosed := checkClosed(&b.Instrs, targetTypes)
-					if isClosed {
-						return true
+					if checkClosed(&b.Instrs, targetTypes) {
+						return "handled"
 					}
 				}
 			}
@@ -217,24 +240,22 @@ func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
 		instrType := instr.Type()
 		for _, targetType := range targetTypes {
 			if types.Identical(instrType, targetType) {
-				isClosed := checkClosed(instr.Referrers(), targetTypes)
-				if isClosed {
-					return true
+				if checkClosed(instr.Referrers(), targetTypes) {
+					return "handled"
 				}
 			}
 		}
 	case *ssa.FieldAddr:
-		isClosed := checkClosed(instr.Referrers(), targetTypes)
-		if isClosed {
-			return true
+		if checkClosed(instr.Referrers(), targetTypes) {
+			return "handled"
 		}
 	case *ssa.Return:
-		return true
+		return "returned"
 	default:
-		//log.Printf("%s", instr)
+		// log.Printf("%s", instr)
 	}
 
-	return false
+	return "unhandled"
 }
 
 func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes []*types.Pointer, inDefer bool) {
@@ -277,4 +298,14 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 			checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
 		}
 	}
+}
+
+func isTargetType(t types.Type, targetTypes []*types.Pointer) bool {
+	for _, targetType := range targetTypes {
+		if types.Identical(t, targetType) {
+			return true
+		}
+	}
+
+	return false
 }
