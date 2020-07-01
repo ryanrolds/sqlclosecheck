@@ -1,4 +1,4 @@
-package rows
+package sqlx_examples
 
 import (
 	"log"
@@ -7,10 +7,11 @@ import (
 
 func missingClose() {
 	age := 27
-	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age) // want "Rows/Stmt was not closed"
+	rows, err := db.Queryx("SELECT name FROM users WHERE age=?", age)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	// defer rows.Close()
 
 	names := make([]string, 0)

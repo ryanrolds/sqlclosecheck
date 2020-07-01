@@ -17,6 +17,7 @@ const (
 var (
 	sqlPackages = []string{
 		"database/sql",
+		"github.com/jmoiron/sqlx",
 	}
 )
 
@@ -24,31 +25,18 @@ func NewAnalyzer() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "sqlclosecheck",
 		Doc:  "Checks that sql.Rows and sql.Stmt are closed.",
-		Run:  NewRun(sqlPackages),
+		Run:  run,
 		Requires: []*analysis.Analyzer{
 			buildssa.Analyzer,
 		},
 	}
 }
 
-func NewRun(sqlPkgs []string) func(pass *analysis.Pass) (interface{}, error) {
-	return func(pass *analysis.Pass) (interface{}, error) {
-		for _, sqlPkg := range sqlPkgs {
-			_, err := run(pass, sqlPkg)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		return nil, nil
-	}
-}
-
-func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
+func run(pass *analysis.Pass) (interface{}, error) {
 	pssa := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 
-	// Check for our target types and build list
-	targetTypes := getTargetTypes(pssa, sqlPkg)
+	// Build list of types we are looking for
+	targetTypes := getTargetTypes(pssa, sqlPackages)
 
 	// If non of the types are found, skip
 	if len(targetTypes) == 0 {
@@ -65,20 +53,17 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 					continue
 				}
 
+				// log.Printf("%s", f.Name())
+
+				// For each found target check if they are closed and deferred
 				for _, targetValue := range targetValues {
-					//pass.Reportf(targetValues.Pos(), "found values of the target type")
-
 					refs := (*targetValue.value).Referrers()
-					if len(*refs) == 0 {
-						continue
-					}
-
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
 					}
 
-					checkDeferred(pass, refs, targetTypes, false)					
+					checkDeferred(pass, refs, targetTypes, false)
 				}
 			}
 		}
@@ -87,23 +72,25 @@ func run(pass *analysis.Pass, sqlPkg string) (interface{}, error) {
 	return nil, nil
 }
 
-func getTargetTypes(pssa *buildssa.SSA, sqlPkg string) []*types.Pointer {
+func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []*types.Pointer {
 	targets := []*types.Pointer{}
 
-	pkg := pssa.Pkg.Prog.ImportedPackage(sqlPkg)
-	if pkg == nil {
-		// the SQL package being checked isn't imported
-		return targets
-	}
+	for _, sqlPkg := range targetPackages {
+		pkg := pssa.Pkg.Prog.ImportedPackage(sqlPkg)
+		if pkg == nil {
+			// the SQL package being checked isn't imported
+			return targets
+		}
 
-	rowsType := getTypePointerFromName(pkg, rowsName)
-	if rowsType != nil {
-		targets = append(targets, rowsType)
-	}
+		rowsType := getTypePointerFromName(pkg, rowsName)
+		if rowsType != nil {
+			targets = append(targets, rowsType)
+		}
 
-	stmtType := getTypePointerFromName(pkg, stmtName)
-	if stmtType != nil {
-		targets = append(targets, stmtType)
+		stmtType := getTypePointerFromName(pkg, stmtName)
+		if stmtType != nil {
+			targets = append(targets, stmtType)
+		}
 	}
 
 	return targets
@@ -142,26 +129,29 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []*types.Pointer
 	signature := call.Call.Signature()
 	results := signature.Results()
 	for i := 0; i < results.Len(); i++ {
+		v := results.At(i)
+		varType := v.Type()
+
 		for _, targetType := range targetTypes {
-			v := results.At(i)
-			varType := v.Type()
-			if types.Identical(varType, targetType) {
-				for _, cRef := range *call.Referrers() {
-					switch instr := cRef.(type) {
-					case *ssa.Call:
-						if len(instr.Call.Args) == 1 && types.Identical(instr.Call.Args[0].Type(), targetType) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr.Call.Args[0],
-								instr: call,
-							})
-						}
-					case ssa.Value:
-						if types.Identical(instr.Type(), targetType) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr,
-								instr: call,
-							})
-						}
+			if !types.Identical(varType, targetType) {
+				continue
+			}
+
+			for _, cRef := range *call.Referrers() {
+				switch instr := cRef.(type) {
+				case *ssa.Call:
+					if len(instr.Call.Args) >= 1 && types.Identical(instr.Call.Args[0].Type(), targetType) {
+						targetValues = append(targetValues, targetValue{
+							value: &instr.Call.Args[0],
+							instr: call,
+						})
+					}
+				case ssa.Value:
+					if types.Identical(instr.Type(), targetType) {
+						targetValues = append(targetValues, targetValue{
+							value: &instr,
+							instr: call,
+						})
 					}
 				}
 			}
@@ -172,57 +162,100 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []*types.Pointer
 }
 
 func checkClosed(refs *[]ssa.Instruction, targetTypes []*types.Pointer) bool {
-	isClosed := false
+	numInstrs := len(*refs)
+	for idx, ref := range *refs {
+		// log.Printf("%T - %s", ref, ref)
 
-	for _, refs := range *refs {
-		if isCloseCall(refs, targetTypes) {
-			isClosed = true
+		action := getAction(ref, targetTypes)
+		switch action {
+		case "closed":
+			return true
+		case "passed":
+			// Passed and not used after
+			if numInstrs == idx+1 {
+				return true
+			}
+		case "returned":
+			return true
+		case "handled":
+			return true
+		default:
+			// log.Printf(action)
 		}
 	}
 
-	return isClosed
+	return false
 }
 
-func isCloseCall(instr ssa.Instruction, targetTypes []*types.Pointer) bool {
+func getAction(instr ssa.Instruction, targetTypes []*types.Pointer) string {
 	switch instr := instr.(type) {
 	case *ssa.Defer:
-		if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
-			return true
+		if instr.Call.Value == nil {
+			return "unvalued defer"
+		}
+
+		name := instr.Call.Value.Name()
+		if name == closeMethod {
+			return "closed"
 		}
 	case *ssa.Call:
-		if instr.Call.Value != nil && instr.Call.Value.Name() == closeMethod {
-			return true
+		if instr.Call.Value == nil {
+			return "unvalued call"
 		}
+
+		isTarget := false
+		receiver := instr.Call.StaticCallee().Signature.Recv()
+		if receiver != nil {
+			isTarget = isTargetType(receiver.Type(), targetTypes)
+		}
+
+		name := instr.Call.Value.Name()
+		if isTarget && name == closeMethod {
+			return "closed"
+		}
+
+		if !isTarget {
+			return "passed"
+		}
+	case *ssa.Phi:
+		return "passed"
+	case *ssa.MakeInterface:
+		return "passed"
 	case *ssa.Store:
 		if len(*instr.Addr.Referrers()) == 0 {
-			return false
+			return "noop"
 		}
 
 		for _, aRef := range *instr.Addr.Referrers() {
 			if c, ok := aRef.(*ssa.MakeClosure); ok {
 				f := c.Fn.(*ssa.Function)
-
 				for _, b := range f.Blocks {
-					for _, innerInstr := range b.Instrs {
-						switch innerInstr := innerInstr.(type) {
-						case *ssa.UnOp:
-							instrType := innerInstr.Type()
-							for _, targetType := range targetTypes {
-								if types.Identical(instrType, targetType) {
-									isClosed := checkClosed(innerInstr.Referrers(), targetTypes)
-									if isClosed {
-										return true
-									}
-								}
-							}
-						}
+					if checkClosed(&b.Instrs, targetTypes) {
+						return "handled"
 					}
 				}
 			}
 		}
+	case *ssa.UnOp:
+		instrType := instr.Type()
+		for _, targetType := range targetTypes {
+			if types.Identical(instrType, targetType) {
+				if checkClosed(instr.Referrers(), targetTypes) {
+					return "handled"
+				}
+			}
+		}
+	case *ssa.FieldAddr:
+		if checkClosed(instr.Referrers(), targetTypes) {
+			return "handled"
+		}
+	case *ssa.Return:
+		return "returned"
+	default:
+		// log.Printf("%s", instr)
 	}
 
-	return false
+	return "unhandled"
 }
 
 func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes []*types.Pointer, inDefer bool) {
@@ -237,33 +270,42 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 				if !inDefer {
 					pass.Reportf(instr.Pos(), "Close should use defer")
 				}
-	
+
 				return
 			}
 		case *ssa.Store:
 			if len(*instr.Addr.Referrers()) == 0 {
 				return
 			}
-	
+
 			for _, aRef := range *instr.Addr.Referrers() {
 				if c, ok := aRef.(*ssa.MakeClosure); ok {
 					f := c.Fn.(*ssa.Function)
-	
+
 					for _, b := range f.Blocks {
-						for _, innerInstr := range b.Instrs {
-							switch innerInstr := innerInstr.(type) {
-							case *ssa.UnOp:
-								instrType := innerInstr.Type()
-								for _, targetType := range targetTypes {
-									if types.Identical(instrType, targetType) {
-										checkDeferred(pass, innerInstr.Referrers(), targetTypes, true)
-									}
-								}
-							}
-						}
+						checkDeferred(pass, &b.Instrs, targetTypes, true)
 					}
 				}
 			}
+		case *ssa.UnOp:
+			instrType := instr.Type()
+			for _, targetType := range targetTypes {
+				if types.Identical(instrType, targetType) {
+					checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
+				}
+			}
+		case *ssa.FieldAddr:
+			checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
 		}
 	}
+}
+
+func isTargetType(t types.Type, targetTypes []*types.Pointer) bool {
+	for _, targetType := range targetTypes {
+		if types.Identical(t, targetType) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func defer_func() {
+func correctDeferBlock() {
 	age := 27
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
 	if err != nil {
