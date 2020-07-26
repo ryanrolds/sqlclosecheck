@@ -33,7 +33,10 @@ func NewAnalyzer() *analysis.Analyzer {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	pssa := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	pssa, ok := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	if !ok {
+		return nil, nil
+	}
 
 	// Build list of types we are looking for
 	targetTypes := getTargetTypes(pssa, sqlPackages)
@@ -228,10 +231,11 @@ func getAction(instr ssa.Instruction, targetTypes []*types.Pointer) string {
 
 		for _, aRef := range *instr.Addr.Referrers() {
 			if c, ok := aRef.(*ssa.MakeClosure); ok {
-				f := c.Fn.(*ssa.Function)
-				for _, b := range f.Blocks {
-					if checkClosed(&b.Instrs, targetTypes) {
-						return "handled"
+				if f, ok := c.Fn.(*ssa.Function); ok {
+					for _, b := range f.Blocks {
+						if checkClosed(&b.Instrs, targetTypes) {
+							return "handled"
+						}
 					}
 				}
 			}
@@ -280,10 +284,10 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 
 			for _, aRef := range *instr.Addr.Referrers() {
 				if c, ok := aRef.(*ssa.MakeClosure); ok {
-					f := c.Fn.(*ssa.Function)
-
-					for _, b := range f.Blocks {
-						checkDeferred(pass, &b.Instrs, targetTypes, true)
+					if f, ok := c.Fn.(*ssa.Function); ok {
+						for _, b := range f.Blocks {
+							checkDeferred(pass, &b.Instrs, targetTypes, true)
+						}
 					}
 				}
 			}
