@@ -207,9 +207,12 @@ func getAction(instr ssa.Instruction, targetTypes []*types.Pointer) string {
 		}
 
 		isTarget := false
-		receiver := instr.Call.StaticCallee().Signature.Recv()
-		if receiver != nil {
-			isTarget = isTargetType(receiver.Type(), targetTypes)
+		staticCallee := instr.Call.StaticCallee()
+		if staticCallee != nil {
+			receiver := instr.Call.StaticCallee().Signature.Recv()
+			if receiver != nil {
+				isTarget = isTargetType(receiver.Type(), targetTypes)
+			}
 		}
 
 		name := instr.Call.Value.Name()
