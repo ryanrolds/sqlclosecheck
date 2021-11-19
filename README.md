@@ -20,7 +20,7 @@ go vet -vettool=$(which sqlclosecheck) ./...
 ## CI
 
 ```
-go install github.com/ryanrolds/sqlclosecheck
+go install github.com/ryanrolds/sqlclosecheck@latest
 go vet -vettool=${GOPATH}/bin/sqlclosecheck ./...
 ```
 
