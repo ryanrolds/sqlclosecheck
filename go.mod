@@ -1,9 +1,9 @@
 module github.com/ryanrolds/sqlclosecheck
 
-go 1.13
+go 1.19
 
 require (
-	github.com/go-sql-driver/mysql v1.4.0
-	github.com/jmoiron/sqlx v1.2.0
-	golang.org/x/tools v0.0.0-20200625211823-6506e20df31f
+	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/tools v0.5.0
 )
