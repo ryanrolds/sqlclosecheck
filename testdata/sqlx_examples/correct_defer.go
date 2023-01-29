@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func correctDefer() {
+func correctGenericDefer() {
 	age := 27
 	rows, err := db.Queryx("SELECT name FROM users WHERE age=?", age)
 	if err != nil {
