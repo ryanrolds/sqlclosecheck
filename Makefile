@@ -20,5 +20,5 @@ test: build
 	diff -a sqlx_examples_results.txt ./testdata/sqlx_examples/expected_results.txt
 
 lint:
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.27.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.50.0
 	./bin/golangci-lint run
