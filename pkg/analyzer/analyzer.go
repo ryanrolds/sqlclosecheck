@@ -241,6 +241,12 @@ func getAction(instr ssa.Instruction, targetTypes []*types.Pointer) action {
 	case *ssa.MakeInterface:
 		return actionPassed
 	case *ssa.Store:
+		// A Row/Stmt is stored in a struct, which may be closed later
+		// by a different flow.
+		if _, ok := instr.Addr.(*ssa.FieldAddr); ok {
+			return actionReturned
+		}
+
 		if len(*instr.Addr.Referrers()) == 0 {
 			return actionNoOp
 		}
