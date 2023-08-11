@@ -95,7 +95,7 @@ func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []*types.Pointe
 		pkg := pssa.Pkg.Prog.ImportedPackage(sqlPkg)
 		if pkg == nil {
 			// the SQL package being checked isn't imported
-			return targets
+			continue
 		}
 
 		rowsType := getTypePointerFromName(pkg, rowsName)
