@@ -22,6 +22,7 @@ const (
 	actionPassed
 	actionClosed
 	actionUnvaluedCall
+	actionUnvaluedDefer
 	actionNoOp
 )
 
@@ -256,6 +257,8 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 				return actionClosed
 			}
 		}
+
+		return actionUnvaluedDefer
 	case *ssa.Call:
 		if instr.Call.Value == nil {
 			return actionUnvaluedCall
