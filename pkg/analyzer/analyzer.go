@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	rowsName    = "Rows"
-	stmtName    = "Stmt"
-	closeMethod = "Close"
+	rowsName      = "Rows"
+	stmtName      = "Stmt"
+	namedStmtName = "NamedStmt"
+	closeMethod   = "Close"
 )
 
 type action uint8
@@ -39,7 +40,7 @@ var (
 func NewAnalyzer() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "sqlclosecheck",
-		Doc:  "Checks that sql.Rows, sql.Stmt, pgx.Query are closed.",
+		Doc:  "Checks that sql.Rows, sql.Stmt, sqlx.NamedStmt, pgx.Query are closed.",
 		Run:  run,
 		Requires: []*analysis.Analyzer{
 			buildssa.Analyzer,
@@ -76,7 +77,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 					refs := (*targetValue.value).Referrers()
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
-						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt was not closed")
+						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt/NamedStmt was not closed")
 					}
 
 					checkDeferred(pass, refs, targetTypes, false)
@@ -112,6 +113,11 @@ func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []any {
 		if stmtType != nil {
 			targets = append(targets, stmtType)
 		}
+
+		namedStmtType := getTypePointerFromName(pkg, namedStmtName)
+		if namedStmtType != nil {
+			targets = append(targets, namedStmtType)
+		}
 	}
 
 	return targets
@@ -120,7 +126,7 @@ func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []any {
 func getTypePointerFromName(pkg *ssa.Package, name string) *types.Pointer {
 	pkgType := pkg.Type(name)
 	if pkgType == nil {
-		// this package does not use Rows/Stmt
+		// this package does not use Rows/Stmt/NamedStmt
 		return nil
 	}
 
