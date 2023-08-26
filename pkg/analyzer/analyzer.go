@@ -65,13 +65,13 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		for _, b := range f.Blocks {
 			for i := range b.Instrs {
 				// Check if instruction is call that returns a target pointer type
-				pointerTargetValues := getTargetTypesValues(b, i, targetTypes)
-				if len(pointerTargetValues) == 0 {
+				targetValues := getTargetTypesValues(b, i, targetTypes)
+				if len(targetValues) == 0 {
 					continue
 				}
 
 				// For each found target check if they are closed and deferred
-				for _, targetValue := range pointerTargetValues {
+				for _, targetValue := range targetValues {
 					refs := (*targetValue.value).Referrers()
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
@@ -169,51 +169,36 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []any) []targetV
 		varType := v.Type()
 
 		for _, targetType := range targetTypes {
-			switch tt := targetType.(type) {
+			var tt types.Type
+
+			switch targetType.(type) {
 			case *types.Pointer:
-				if !types.Identical(varType, tt) {
-					continue
-				}
-
-				for _, cRef := range *call.Referrers() {
-					switch instr := cRef.(type) {
-					case *ssa.Call:
-						if len(instr.Call.Args) >= 1 && types.Identical(instr.Call.Args[0].Type(), tt) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr.Call.Args[0],
-								instr: call,
-							})
-						}
-					case ssa.Value:
-						if types.Identical(instr.Type(), tt) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr,
-								instr: call,
-							})
-						}
-					}
-				}
+				tt = targetType.(*types.Pointer)
 			case *types.Named:
-				if !types.Identical(varType, tt) {
-					continue
-				}
+				tt = targetType.(*types.Named)
+			default:
+				continue
+			}
 
-				for _, cRef := range *call.Referrers() {
-					switch instr := cRef.(type) {
-					case *ssa.Call:
-						if len(instr.Call.Args) >= 1 && types.Identical(instr.Call.Args[0].Type(), tt) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr.Call.Args[0],
-								instr: call,
-							})
-						}
-					case ssa.Value:
-						if types.Identical(instr.Type(), tt) {
-							targetValues = append(targetValues, targetValue{
-								value: &instr,
-								instr: call,
-							})
-						}
+			if !types.Identical(varType, tt) {
+				continue
+			}
+
+			for _, cRef := range *call.Referrers() {
+				switch instr := cRef.(type) {
+				case *ssa.Call:
+					if len(instr.Call.Args) >= 1 && types.Identical(instr.Call.Args[0].Type(), tt) {
+						targetValues = append(targetValues, targetValue{
+							value: &instr.Call.Args[0],
+							instr: call,
+						})
+					}
+				case ssa.Value:
+					if types.Identical(instr.Type(), tt) {
+						targetValues = append(targetValues, targetValue{
+							value: &instr,
+							instr: call,
+						})
 					}
 				}
 			}
@@ -310,18 +295,20 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 	case *ssa.UnOp:
 		instrType := instr.Type()
 		for _, targetType := range targetTypes {
-			switch tt := targetType.(type) {
+			var tt types.Type
+
+			switch targetType.(type) {
 			case *types.Pointer:
-				if types.Identical(instrType, tt) {
-					if checkClosed(instr.Referrers(), targetTypes) {
-						return actionHandled
-					}
-				}
+				tt = targetType.(*types.Pointer)
 			case *types.Named:
-				if types.Identical(instrType, tt) {
-					if checkClosed(instr.Referrers(), targetTypes) {
-						return actionHandled
-					}
+				tt = targetType.(*types.Named)
+			default:
+				continue
+			}
+
+			if types.Identical(instrType, tt) {
+				if checkClosed(instr.Referrers(), targetTypes) {
+					return actionHandled
 				}
 			}
 		}
@@ -372,17 +359,20 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 		case *ssa.UnOp:
 			instrType := instr.Type()
 			for _, targetType := range targetTypes {
-				switch tt := targetType.(type) {
+				var tt types.Type
+
+				switch targetType.(type) {
 				case *types.Pointer:
-					if types.Identical(instrType, tt) {
-						checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
-					}
+					tt = targetType.(*types.Pointer)
 				case *types.Named:
-					if types.Identical(instrType, tt) {
-						checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
-					}
+					tt = targetType.(*types.Named)
+				default:
+					continue
 				}
 
+				if types.Identical(instrType, tt) {
+					checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
+				}
 			}
 		case *ssa.FieldAddr:
 			checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
