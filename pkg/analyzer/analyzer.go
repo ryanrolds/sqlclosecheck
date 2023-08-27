@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"go/types"
+
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -171,11 +172,11 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []any) []targetV
 		for _, targetType := range targetTypes {
 			var tt types.Type
 
-			switch targetType.(type) {
+			switch t := targetType.(type) {
 			case *types.Pointer:
-				tt = targetType.(*types.Pointer)
+				tt = t
 			case *types.Named:
-				tt = targetType.(*types.Named)
+				tt = t
 			default:
 				continue
 			}
@@ -297,11 +298,11 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 		for _, targetType := range targetTypes {
 			var tt types.Type
 
-			switch targetType.(type) {
+			switch t := targetType.(type) {
 			case *types.Pointer:
-				tt = targetType.(*types.Pointer)
+				tt = t
 			case *types.Named:
-				tt = targetType.(*types.Named)
+				tt = t
 			default:
 				continue
 			}
@@ -361,11 +362,11 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 			for _, targetType := range targetTypes {
 				var tt types.Type
 
-				switch targetType.(type) {
+				switch t := targetType.(type) {
 				case *types.Pointer:
-					tt = targetType.(*types.Pointer)
+					tt = t
 				case *types.Named:
-					tt = targetType.(*types.Named)
+					tt = t
 				default:
 					continue
 				}
