@@ -17,6 +17,10 @@ type Edit struct {
 	New        string // the replacement
 }
 
+func (e Edit) String() string {
+	return fmt.Sprintf("{Start:%d,End:%d,New:%q}", e.Start, e.End, e.New)
+}
+
 // Apply applies a sequence of edits to the src buffer and returns the
 // result. Edits are applied in order of start offset; edits with the
 // same start offset are applied in they order they were provided.
@@ -46,6 +50,13 @@ func Apply(src string, edits []Edit) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+// ApplyBytes is like Apply, but it accepts a byte slice.
+// The result is always a new array.
+func ApplyBytes(src []byte, edits []Edit) ([]byte, error) {
+	res, err := Apply(string(src), edits)
+	return []byte(res), err
 }
 
 // validate checks that edits are consistent with src,
@@ -103,19 +114,23 @@ func lineEdits(src string, edits []Edit) ([]Edit, error) {
 		return nil, err
 	}
 
-	// Do all edits begin and end at the start of a line?
-	// TODO(adonovan): opt: is this fast path necessary?
-	// (Also, it complicates the result ownership.)
+	// Do all deletions begin and end at the start of a line,
+	// and all insertions end with a newline?
+	// (This is merely a fast path.)
 	for _, edit := range edits {
 		if edit.Start >= len(src) || // insertion at EOF
 			edit.Start > 0 && src[edit.Start-1] != '\n' || // not at line start
-			edit.End > 0 && src[edit.End-1] != '\n' { // not at line start
-			goto expand
+			edit.End > 0 && src[edit.End-1] != '\n' || // not at line start
+			edit.New != "" && edit.New[len(edit.New)-1] != '\n' { // partial insert
+			goto expand // slow path
 		}
 	}
 	return edits, nil // aligned
 
 expand:
+	if len(edits) == 0 {
+		return edits, nil // no edits (unreachable due to fast path)
+	}
 	expanded := make([]Edit, 0, len(edits)) // a guess
 	prev := edits[0]
 	// TODO(adonovan): opt: start from the first misaligned edit.
@@ -138,7 +153,7 @@ expand:
 // expandEdit returns edit expanded to complete whole lines.
 func expandEdit(edit Edit, src string) Edit {
 	// Expand start left to start of line.
-	// (delta is the zero-based column number of of start.)
+	// (delta is the zero-based column number of start.)
 	start := edit.Start
 	if delta := start - 1 - strings.LastIndex(src[:start], "\n"); delta > 0 {
 		edit.Start -= delta
@@ -146,16 +161,16 @@ func expandEdit(edit Edit, src string) Edit {
 	}
 
 	// Expand end right to end of line.
-	// (endCol is the zero-based column number of end.)
 	end := edit.End
-	if endCol := end - 1 - strings.LastIndex(src[:end], "\n"); endCol > 0 {
+	if end > 0 && src[end-1] != '\n' ||
+		edit.New != "" && edit.New[len(edit.New)-1] != '\n' {
 		if nl := strings.IndexByte(src[end:], '\n'); nl < 0 {
 			edit.End = len(src) // extend to EOF
 		} else {
 			edit.End = end + nl + 1 // extend beyond \n
 		}
-		edit.New += src[end:edit.End]
 	}
+	edit.New += src[end:edit.End]
 
 	return edit
 }
