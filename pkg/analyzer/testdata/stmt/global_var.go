@@ -18,6 +18,7 @@ func globalVarTest() {
 			_ = globalStmt.Close()
 		}
 	}()
+
 	for i := 0; i < 100; i++ {
 		if rand.Float64() > 0.8 {
 			err := optionalDbOp()
@@ -35,6 +36,7 @@ func optionalDbOp() error {
 	if globalErr != nil {
 		return globalErr
 	}
+
 	_, err := globalStmt.Exec()
 	return err
 }
