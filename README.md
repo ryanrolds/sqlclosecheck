@@ -3,6 +3,11 @@
 Linter that checks if SQL rows/statements are closed. Unclosed rows and statements may
 cause DB connection pool exhaustion.
 
+## Analyzers
+
+* `defer-only` - require that Close be deferred
+* `closed` - require that Close be called (EXPERIMENTAL)
+
 ## Running
 
 ```

@@ -11,5 +11,5 @@ func XTestClosedAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 
 	checker := analyzer.NewClosedAnalyzer()
-	analysistest.Run(t, testdata, checker, "rows", "stmt")
+	analysistest.Run(t, testdata, checker, "closed")
 }
