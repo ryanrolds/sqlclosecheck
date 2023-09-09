@@ -5,6 +5,11 @@ import (
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
 
+const (
+	defaultMode = analyzer.ConfigurableAnalyzerDeferOnly
+)
+
 func main() {
-	singlechecker.Main(analyzer.NewAnalyzer())
+	checker := analyzer.NewConfigurableAnalyzer(defaultMode)
+	singlechecker.Main(checker)
 }
