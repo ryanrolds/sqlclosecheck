@@ -1,0 +1,4 @@
+# github.com/ryanrolds/sqlclosecheck/testdata/pgx_examples
+testdata/pgx_examples/missing_close.go:8:26: Rows/Stmt/NamedStmt was not closed
+testdata/pgx_examples/missing_close.go:17:28: Rows/Stmt/NamedStmt was not closed
+testdata/pgx_examples/missing_close.go:26:28: Rows/Stmt/NamedStmt was not closed

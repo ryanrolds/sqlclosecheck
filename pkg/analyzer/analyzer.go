@@ -10,7 +10,7 @@ import (
 // NewAnalyzer returns a non-configurable analyzer that defaults to the defer-only mode.
 // Deprecated, this will be removed in v1.0.0.
 func NewAnalyzer() *analysis.Analyzer {
-	flags := flag.NewFlagSet("cfgAnalyzer", flag.ExitOnError)
+	flags := flag.NewFlagSet("analyzer", flag.ExitOnError)
 	return newAnalyzer(run, flags)
 }
 
@@ -26,7 +26,7 @@ func newAnalyzer(
 ) *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "sqlclosecheck",
-		Doc:  "Checks that sql.Rows and sql.Stmt are closed.",
+		Doc:  "Checks that sql.Rows, sql.Stmt, sqlx.NamedStmt, pgx.Query are closed.",
 		Run:  r,
 		Requires: []*analysis.Analyzer{
 			buildssa.Analyzer,

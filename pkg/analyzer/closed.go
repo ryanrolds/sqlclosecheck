@@ -10,7 +10,7 @@ type closedAnalyzer struct{}
 
 func NewClosedAnalyzer() *analysis.Analyzer {
 	analyzer := &closedAnalyzer{}
-	flags := flag.NewFlagSet("cfgAnalyzer", flag.ExitOnError)
+	flags := flag.NewFlagSet("closedAnalyzer", flag.ExitOnError)
 	return newAnalyzer(analyzer.Run, flags)
 }
 

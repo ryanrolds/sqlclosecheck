@@ -1,9 +1,12 @@
 name: build
 on:
   push:
+    branches:
+      - main
+  pull_request:
 jobs:
   golangci:
-    name: lint
+    name: CI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v3

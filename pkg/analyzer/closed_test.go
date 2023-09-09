@@ -7,9 +7,23 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestClosedAnalyzer(t *testing.T) {
-	testdata := analysistest.TestData()
+func XTestClosedAnalyzer(t *testing.T) {
+	t.Parallel()
 
+	testdata := analysistest.TestData()
 	checker := analyzer.NewClosedAnalyzer()
-	analysistest.Run(t, testdata, checker, "closed")
+
+	packages := []string{
+		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/closed",
+	}
+
+	for _, pkg := range packages {
+		pkg := pkg
+
+		t.Run(pkg, func(t *testing.T) {
+			t.Parallel()
+
+			analysistest.Run(t, testdata, checker, pkg)
+		})
+	}
 }

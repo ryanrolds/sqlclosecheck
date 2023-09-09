@@ -21,7 +21,7 @@ type ConifgurableAnalyzer struct {
 func NewConfigurableAnalyzer(mode ConfigurableModeType) *analysis.Analyzer {
 	cfgAnalyzer := &ConifgurableAnalyzer{}
 	flags := flag.NewFlagSet("cfgAnalyzer", flag.ExitOnError)
-	flags.StringVar(&cfgAnalyzer.Mode, "mode", string(ConfigurableAnalyzerDeferOnly),
+	flags.StringVar(&cfgAnalyzer.Mode, "mode", string(mode),
 		"Mode to run the analyzer in. (defer-only, closed)")
 	return newAnalyzer(cfgAnalyzer.run, flags)
 }

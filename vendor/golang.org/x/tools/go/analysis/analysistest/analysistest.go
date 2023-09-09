@@ -184,7 +184,7 @@ func RunWithSuggestedFixes(t Testing, dir string, a *analysis.Analyzer, patterns
 					for _, vf := range ar.Files {
 						if vf.Name == sf {
 							found = true
-							out, err := diff.Apply(string(orig), edits)
+							out, err := diff.ApplyBytes(orig, edits)
 							if err != nil {
 								t.Errorf("%s: error applying fixes: %v", file.Name(), err)
 								continue
@@ -194,7 +194,7 @@ func RunWithSuggestedFixes(t Testing, dir string, a *analysis.Analyzer, patterns
 							// between files in the archive. normalize
 							// this to a single newline.
 							want := string(bytes.TrimRight(vf.Data, "\n")) + "\n"
-							formatted, err := format.Source([]byte(out))
+							formatted, err := format.Source(out)
 							if err != nil {
 								t.Errorf("%s: error formatting edited source: %v\n%s", file.Name(), err, out)
 								continue
@@ -218,14 +218,14 @@ func RunWithSuggestedFixes(t Testing, dir string, a *analysis.Analyzer, patterns
 					catchallEdits = append(catchallEdits, edits...)
 				}
 
-				out, err := diff.Apply(string(orig), catchallEdits)
+				out, err := diff.ApplyBytes(orig, catchallEdits)
 				if err != nil {
 					t.Errorf("%s: error applying fixes: %v", file.Name(), err)
 					continue
 				}
 				want := string(ar.Comment)
 
-				formatted, err := format.Source([]byte(out))
+				formatted, err := format.Source(out)
 				if err != nil {
 					t.Errorf("%s: error formatting resulting source: %v\n%s", file.Name(), err, out)
 					continue
@@ -242,12 +242,16 @@ func RunWithSuggestedFixes(t Testing, dir string, a *analysis.Analyzer, patterns
 
 // Run applies an analysis to the packages denoted by the "go list" patterns.
 //
-// It loads the packages from the specified GOPATH-style project
+// It loads the packages from the specified
 // directory using golang.org/x/tools/go/packages, runs the analysis on
 // them, and checks that each analysis emits the expected diagnostics
 // and facts specified by the contents of '// want ...' comments in the
 // package's source files. It treats a comment of the form
-// "//...// want..." or "/*...// want... */" as if it starts at 'want'
+// "//...// want..." or "/*...// want... */" as if it starts at 'want'.
+//
+// If the directory contains a go.mod file, Run treats it as the root of the
+// Go module in which to work. Otherwise, Run treats it as the root of a
+// GOPATH-style tree, with package contained in the src subdirectory.
 //
 // An expectation of a Diagnostic is specified by a string literal
 // containing a regular expression that must match the diagnostic
@@ -289,6 +293,11 @@ func Run(t Testing, dir string, a *analysis.Analyzer, patterns ...string) []*Res
 		return nil
 	}
 
+	if err := analysis.Validate([]*analysis.Analyzer{a}); err != nil {
+		t.Errorf("Validate: %v", err)
+		return nil
+	}
+
 	results := checker.TestAnalyzer(a, pkgs)
 	for _, result := range results {
 		if result.Err != nil {
@@ -304,10 +313,17 @@ func Run(t Testing, dir string, a *analysis.Analyzer, patterns ...string) []*Res
 type Result = checker.TestAnalyzerResult
 
 // loadPackages uses go/packages to load a specified packages (from source, with
-// dependencies) from dir, which is the root of a GOPATH-style project
-// tree. It returns an error if any package had an error, or the pattern
+// dependencies) from dir, which is the root of a GOPATH-style project tree.
+// loadPackages returns an error if any package had an error, or the pattern
 // matched no packages.
 func loadPackages(a *analysis.Analyzer, dir string, patterns ...string) ([]*packages.Package, error) {
+	env := []string{"GOPATH=" + dir, "GO111MODULE=off"} // GOPATH mode
+
+	// Undocumented module mode. Will be replaced by something better.
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		env = []string{"GO111MODULE=on", "GOPROXY=off"} // module mode
+	}
+
 	// packages.Load loads the real standard library, not a minimal
 	// fake version, which would be more efficient, especially if we
 	// have many small tests that import, say, net/http.
@@ -317,12 +333,12 @@ func loadPackages(a *analysis.Analyzer, dir string, patterns ...string) ([]*pack
 
 	mode := packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
 		packages.NeedTypes | packages.NeedTypesSizes | packages.NeedSyntax | packages.NeedTypesInfo |
-		packages.NeedDeps
+		packages.NeedDeps | packages.NeedModule
 	cfg := &packages.Config{
 		Mode:  mode,
 		Dir:   dir,
 		Tests: true,
-		Env:   append(os.Environ(), "GOPATH="+dir, "GO111MODULE=off", "GOPROXY=off"),
+		Env:   append(os.Environ(), env...),
 	}
 	pkgs, err := packages.Load(cfg, patterns...)
 	if err != nil {
