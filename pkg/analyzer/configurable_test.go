@@ -7,9 +7,9 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestAnalyzer(t *testing.T) {
+func TestConfigurableAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 
-	checker := analyzer.NewAnalyzer()
+	checker := analyzer.NewConfigurableAnalyzer(analyzer.ConfigurableAnalyzerDeferOnly)
 	analysistest.Run(t, testdata, checker, "rows", "stmt")
 }

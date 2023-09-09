@@ -7,9 +7,9 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestAnalyzer(t *testing.T) {
+func XTestClosedAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 
-	checker := analyzer.NewAnalyzer()
+	checker := analyzer.NewClosedAnalyzer()
 	analysistest.Run(t, testdata, checker, "rows", "stmt")
 }

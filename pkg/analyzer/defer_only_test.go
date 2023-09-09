@@ -7,9 +7,9 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestAnalyzer(t *testing.T) {
+func TestDeferOnlyAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 
-	checker := analyzer.NewAnalyzer()
-	analysistest.Run(t, testdata, checker, "rows", "stmt")
+	analyzer := analyzer.NewDeferOnlyAnalyzer()
+	analysistest.Run(t, testdata, analyzer, "rows", "stmt")
 }

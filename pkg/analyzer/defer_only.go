@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"flag"
 	"go/types"
 
 	"golang.org/x/tools/go/analysis"
@@ -34,20 +35,27 @@ var (
 	}
 )
 
-type deferAnalyzer struct{}
+type deferOnlyAnalyzer struct{}
 
-func NewDeferAnalyzer() *deferAnalyzer {
-	return &deferAnalyzer{}
+func NewDeferOnlyAnalyzer() *analysis.Analyzer {
+	analyzer := &deferOnlyAnalyzer{}
+	flags := flag.NewFlagSet("cfgAnalyzer", flag.ExitOnError)
+	return newAnalyzer(analyzer.Run, flags)
 }
 
 // Run implements the main analysis pass
-func (a *deferAnalyzer) Run(pass *analysis.Pass, pssa *buildssa.SSA) error {
+func (a *deferOnlyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
+	pssa, ok := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+	if !ok {
+		return nil, nil
+	}
+
 	// Build list of types we are looking for
 	targetTypes := getTargetTypes(pssa, sqlPackages)
 
 	// If non of the types are found, skip
 	if len(targetTypes) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	funcs := pssa.SrcFuncs
@@ -76,7 +84,7 @@ func (a *deferAnalyzer) Run(pass *analysis.Pass, pssa *buildssa.SSA) error {
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []*types.Pointer {
