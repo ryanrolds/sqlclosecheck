@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// rowsCorrect provides an example of corrcet closing of rows without a defer
-func rowsCorrect() {
+// rowsIncorrectNoErr provides an example of incorrect closing by not calling Err()
+func rowsIncorrectNoErr() {
 	age := 40
-	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
+	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age) // want "Rows/Stmt was not handled"
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,9 +25,9 @@ func rowsCorrect() {
 	}
 
 	// Check for errors from iterating over rows.
-	if err := rows.Err(); err != nil {
-		log.Fatal(err)
-	}
+	// if err := rows.Err(); err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	log.Printf("%s are %d years old", strings.Join(names, ", "), age)
 }

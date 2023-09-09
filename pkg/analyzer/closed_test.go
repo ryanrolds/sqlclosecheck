@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func XTestClosedAnalyzer(t *testing.T) {
+func TestClosedAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 
 	checker := analyzer.NewClosedAnalyzer()
