@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// nextCorrcet provides an example of corrcet closing of rows without a defer
-func nextCorrcet() {
+// rowsCorrect provides an example of corrcet closing of rows without a defer
+func rowsCorrect() {
 	age := 40
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
 	if err != nil {
