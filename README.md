@@ -6,9 +6,20 @@ cause DB connection pool exhaustion. Included in `golangci-lint` as `sqlcloseche
 ## Analyzers
 
 * `defer-only` - require that Close be deferred
-* `closed` - require that Close be called (EXPERIMENTAL)
+* `closed` - require that Close be called (WIP)
 
-## Running
+## Supported packages
+
+* `database/sql`
+*	`github.com/jmoiron/sqlx`
+* `github.com/jackc/pgx/v5`
+* `github.com/jackc/pgx/v5/pgxpool`
+
+## Contributing
+
+Contributions, bug reports, and feature requests are welcome.
+
+### Running
 
 ```
 make build
@@ -20,7 +31,7 @@ In your project directory:
 go vet -vettool=$(which sqlclosecheck) ./...
 ```
 
-## Developers
+### When making changes
 
 Start by creating a test that should pass/fail.
 Test are located at `pkg/analyzer/testdata`. 
@@ -32,6 +43,6 @@ Make changes to the analyzer (`pkg/analyzer`) and run the tests:
 make test
 ```
 
-## CI
+### CI
 
-GitHub Actions that runs on push to `main` and PRs.
+GitHub Actions runs on push to `main` and PRs by the project lead.

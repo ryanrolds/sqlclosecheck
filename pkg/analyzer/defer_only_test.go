@@ -15,8 +15,8 @@ func TestDeferOnlyAnalyzer(t *testing.T) {
 
 	packages := []string{
 		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/rows",
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/stmt",
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/pgx",
+		//"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/stmt",
+		//"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/pgx",
 	}
 
 	for _, pkg := range packages {

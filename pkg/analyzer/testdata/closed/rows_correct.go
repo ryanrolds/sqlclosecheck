@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// rowsCorrect provides an example of corrcet closing of rows without a defer
+// rowsCorrect provides an example of correct closing of rows without a defer
 func rowsCorrect() {
 	age := 40
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)

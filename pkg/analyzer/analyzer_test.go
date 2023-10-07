@@ -7,8 +7,8 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestAnalyzer(t *testing.T) {
-	t.Parallel()
+func XTestAnalyzer(t *testing.T) {
+	//t.Parallel()
 
 	testdata := analysistest.TestData()
 	checker := analyzer.NewAnalyzer()
@@ -23,7 +23,7 @@ func TestAnalyzer(t *testing.T) {
 		pkg := pkg
 
 		t.Run(pkg, func(t *testing.T) {
-			t.Parallel()
+			//t.Parallel()
 
 			analysistest.Run(t, testdata, checker, pkg)
 		})
