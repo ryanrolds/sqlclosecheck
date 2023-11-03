@@ -33,6 +33,17 @@ func NewDeferOnlyAnalyzer() *analysis.Analyzer {
 	return newAnalyzer(analyzer.Run, flags)
 }
 
+type deferOnlyVisitor struct {
+	needsClosed        targetValue
+	typesNeedingClosed []types.Type
+
+	inDefer bool
+}
+
+func (v *deferOnlyVisitor) copy() *deferOnlyVisitor {
+	return &deferOnlyVisitor{}
+}
+
 // Run implements the main analysis pass
 //
 // # TODO write description of how this analyzer works
@@ -62,6 +73,14 @@ func (a *deferOnlyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 
 				// For each found target check if they are closed and deferred
 				for _, result := range resultsNeedingClosed {
+					visitor := &deferOnlyVisitor{
+						needsClosed:        result,
+						typesNeedingClosed: typesNeedingClosed,
+
+						// mutable state
+						inDefer: false,
+					}
+
 					refs := result.value.Referrers()
 
 					// isClosed := checkClosed(refs, typesNeedingClosed)
@@ -69,7 +88,7 @@ func (a *deferOnlyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 					// 	pass.Reportf((result.instr).Pos(), "Rows/Stmt/NamedStmt was not closed")
 					// }
 
-					reportImproperHandling(pass, result.instr, refs, typesNeedingClosed, false)
+					reportImproperHandling(pass, visitor, refs)
 				}
 			}
 		}
@@ -80,18 +99,18 @@ func (a *deferOnlyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 
 func reportImproperHandling(
 	pass *analysis.Pass,
-	instr ssa.Instruction,
+	visitor *deferOnlyVisitor,
 	refs *[]ssa.Instruction,
-	targetTypes []types.Type,
-	inDefer bool,
 ) {
-	for _, refInstr := range *refs {
-		log.Printf("instr: %v", refInstr)
+	log.Printf("report %d", refs)
+
+	for refIdx, refInstr := range *refs {
+		log.Printf("instr %d: %v", refIdx, refInstr)
 
 		switch instr := refInstr.(type) {
 		// check for defer (.e.g. `defer rows.Close()`)
 		case *ssa.Defer:
-			log.Printf("instr.Call: %v", instr.Call)
+			log.Printf("defer instr.Call: %v", instr)
 
 			if instr.Call.Value != nil && instr.Call.Value.Name() == MethodCloseName {
 				return
@@ -100,11 +119,13 @@ func reportImproperHandling(
 			if instr.Call.Method != nil && instr.Call.Method.Name() == MethodCloseName {
 				return
 			}
-		// check for function call (.e.g. `rows.Close()`)
+		// check for close function call (.e.g. `rows.Close()`)
 		case *ssa.Call:
+			log.Printf("call instr: %v", instr)
+
 			if instr.Call.Value != nil && instr.Call.Value.Name() == MethodCloseName {
 				// if we are not inside of a defer, then we should report that a defer wasn't used
-				if !inDefer {
+				if !visitor.inDefer {
 					pass.Reportf(instr.Pos(), "Close should use defer")
 					return
 				}
@@ -112,48 +133,62 @@ func reportImproperHandling(
 				// in a defer and was closed, so we are good
 				return
 			}
-			// case *ssa.Store:
-			// 	if len(*instr.Addr.Referrers()) == 0 {
-			// 		return
-			// 	}
+		// check for store of type that needs closed (e.g. `rows, err := ...``)
+		case *ssa.Store:
+			log.Printf("store instr: %v", instr)
 
-			// 	for _, aRef := range *instr.Addr.Referrers() {
-			// 		if c, ok := aRef.(*ssa.MakeClosure); ok {
-			// 			if f, ok := c.Fn.(*ssa.Function); ok {
-			// 				for _, b := range f.Blocks {
-			// 					reportImproperHandling(pass, instr, &b.Instrs, targetTypes, true)
-			// 					return
-			// 				}
+			if len(*instr.Addr.Referrers()) == 0 {
+				return // TODO should this be a continue?
+			}
+
+			storeReferrers := instr.Addr.Referrers()
+			trimmed := (*storeReferrers)[1:]
+			log.Printf("store refs %v", (*storeReferrers)[1:])
+
+			// checks all references to what was stored
+			reportImproperHandling(pass, visitor, &trimmed)
+
+			// for _, aRef := range storeReferrers {
+			// 	if c, ok := aRef.(*ssa.MakeClosure); ok {
+			// 		if f, ok := c.Fn.(*ssa.Function); ok {
+			// 			for _, b := range f.Blocks {
+			// 				reportImproperHandling(pass, instr, &b.Instrs, targetTypes, true)
+			// 				return
 			// 			}
 			// 		}
 			// 	}
-			// case *ssa.UnOp:
-			// 	instrType := instr.Type()
-			// 	for _, targetType := range targetTypes {
-			// 		var tt types.Type
+			// }
+		case *ssa.UnOp:
+			log.Printf("unop instr: %v", instr)
 
-			// 		switch t := targetType.(type) {
-			// 		case *types.Pointer:
-			// 			tt = t
-			// 		case *types.Named:
-			// 			tt = t
-			// 		default:
-			// 			continue
-			// 		}
+			// instrType := instr.Type()
+			// for _, targetType := range targetTypes {
+			// 	var tt types.Type
 
-			// 		if types.Identical(instrType, tt) {
-			// 			reportImproperHandling(pass, instr, instr.Referrers(), targetTypes, inDefer)
-			// 			return
-			// 		}
+			// 	switch t := targetType.(type) {
+			// 	case *types.Pointer:
+			// 		tt = t
+			// 	case *types.Named:
+			// 		tt = t
+			// 	default:
+			// 		continue
 			// 	}
-			// case *ssa.FieldAddr:
+
+			// 	if types.Identical(instrType, tt) {
+			// 		reportImproperHandling(pass, instr, instr.Referrers(), targetTypes, inDefer)
+			// 		return
+			// 	}
+			// }
+		case *ssa.FieldAddr:
+			log.Printf("field address instr: %v", instr)
+
 			// 	reportImproperHandling(pass, instr, instr.Referrers(), targetTypes, inDefer)
 			// 	return
 		}
 	}
 
-	log.Printf("not closed: %v", instr)
-	pass.Reportf(instr.Pos(), "Rows/Stmt/NamedStmt was not closed")
+	log.Printf("not closed: %v", visitor.needsClosed)
+	pass.Reportf(visitor.needsClosed.Pos(), "Rows/Stmt/NamedStmt was not closed")
 }
 
 func checkClosed(refs *[]ssa.Instruction, targetTypes []types.Type) bool {

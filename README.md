@@ -43,6 +43,11 @@ Make changes to the analyzer (`pkg/analyzer`) and run the tests:
 make test
 ```
 
+Sometimes it's helpful to look at the SSA for a test function:
+```
+env GOSSAFUNC=correctDeferBlock go build pkg/analyzer/testdata/rows/common.go pkg/analyzer/testdata/rows/correct_defer_block.go
+```
+
 ### CI
 
 GitHub Actions runs on push to `main` and PRs by the project lead.
