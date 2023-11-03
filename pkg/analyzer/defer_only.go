@@ -247,6 +247,15 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			if name == closeMethod {
 				return actionClosed
 			}
+		} else if instr.Call.Value != nil {
+			// If it is a deferred function, go further down the call chain
+			if f, ok := instr.Call.Value.(*ssa.Function); ok {
+				for _, b := range f.Blocks {
+					if checkClosed(&b.Instrs, targetTypes) {
+						return actionHandled
+					}
+				}
+			}
 		}
 
 		return actionUnvaluedDefer
