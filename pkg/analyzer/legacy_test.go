@@ -8,7 +8,6 @@ import (
 )
 
 var legacyTestPackages = []string{
-	"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/closed",
 	"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/defer_close",
 	"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/defer_only",
 	"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/negative",

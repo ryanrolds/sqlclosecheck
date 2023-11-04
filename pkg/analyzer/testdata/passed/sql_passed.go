@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func passedAndClosed() {
+func sqlRowsPassedClosed() {
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users")
 	if err != nil {
 		log.Fatal(err)
@@ -18,7 +18,7 @@ func closedPassed(rows *sql.Rows) {
 	rows.Close()
 }
 
-func passedAndNotClosed(rows *sql.Rows) {
+func sqlRowsPassedMissingClosed(rows *sql.Rows) {
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users") // want "Rows/Stmt/NamedStmt was not closed"
 	if err != nil {
 		log.Fatal(err)
