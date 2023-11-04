@@ -1,4 +1,4 @@
-package stmt
+package returned
 
 import (
 	"database/sql"

@@ -5,8 +5,9 @@ cause DB connection pool exhaustion. Included in `golangci-lint` as `sqlcloseche
 
 ## Analyzers
 
-* `defer-only` - require that Close be deferred
+* `legacy` - require that Close be called (LEGACY)
 * `closed` - require that Close be called (EXPERIMENTAL)
+* `defer-only` - require that Close be deferred (FUTURE)
 
 ## Running
 

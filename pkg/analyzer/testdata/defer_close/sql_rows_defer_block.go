@@ -1,16 +1,23 @@
-package rows
+package defer_close
 
 import (
 	"log"
 	"strings"
 )
 
-func nonDeferClose() {
+func sqlRowsDeferBlock() {
 	age := 27
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			log.Print("problem closing rows")
+		}
+	}()
 
 	names := make([]string, 0)
 	for rows.Next() {
@@ -26,6 +33,4 @@ func nonDeferClose() {
 		log.Fatal(err)
 	}
 	log.Printf("%s are %d years old", strings.Join(names, ", "), age)
-
-	rows.Close() // want "Close should use defer"
 }

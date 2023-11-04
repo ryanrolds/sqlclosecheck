@@ -1,23 +1,32 @@
-package rows
+package closed
 
 import (
+	"database/sql"
 	"log"
 	"strings"
 )
 
-func correctDeferBlock() {
+func correctMethodClose() {
+	server := Server{}
+	server.CloseInOtherMethod()
+}
+
+type Server struct {
+	Rows *sql.Rows
+}
+
+func (s *Server) Close() {
+	s.Rows.Close()
+}
+
+func (s Server) CloseInOtherMethod() {
 	age := 27
 	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer func() {
-		err := rows.Close()
-		if err != nil {
-			log.Print("problem closing rows")
-		}
-	}()
+	s.Rows = rows
 
 	names := make([]string, 0)
 	for rows.Next() {
@@ -27,6 +36,8 @@ func correctDeferBlock() {
 		}
 		names = append(names, name)
 	}
+
+	s.Close()
 
 	// Check for errors from iterating over rows.
 	if err := rows.Err(); err != nil {

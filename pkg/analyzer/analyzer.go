@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 )
 
-// NewAnalyzer returns a non-configurable analyzer that defaults to the defer-only mode.
+// NewAnalyzer returns a non-configurable analyzer that defaults to the legacy mode.
 // Deprecated, this will be removed in v1.0.0.
 func NewAnalyzer() *analysis.Analyzer {
 	flags := flag.NewFlagSet("analyzer", flag.ExitOnError)
@@ -15,8 +15,8 @@ func NewAnalyzer() *analysis.Analyzer {
 }
 
 func run(pass *analysis.Pass) (interface{}, error) {
-	opinionatedAnalyzer := &deferOnlyAnalyzer{}
-	return opinionatedAnalyzer.Run(pass)
+	analyzer := &legacyAnalyzer{}
+	return analyzer.Run(pass)
 }
 
 // newAnalyzer returns a new analyzer with the given run function, should be used by all analyzers.

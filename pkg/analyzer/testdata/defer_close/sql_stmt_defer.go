@@ -1,17 +1,17 @@
-package stmt
+package defer_close
 
 import (
 	"database/sql"
 	"log"
 )
 
-func missingClose() {
+func sqlStmtDefer() {
 	// In normal use, create one Stmt when your process starts.
-	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?") // want "Rows/Stmt/NamedStmt was not closed"
+	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?")
 	if err != nil {
 		log.Fatal(err)
 	}
-	// defer stmt.Close()
+	defer stmt.Close()
 
 	// Then reuse it each time you need to issue the query.
 	id := 43

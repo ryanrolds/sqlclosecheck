@@ -38,16 +38,16 @@ var (
 	}
 )
 
-type deferOnlyAnalyzer struct{}
+type legacyAnalyzer struct{}
 
-func NewDeferOnlyAnalyzer() *analysis.Analyzer {
-	analyzer := &deferOnlyAnalyzer{}
-	flags := flag.NewFlagSet("deferOnlyAnalyzer", flag.ExitOnError)
+func NewLegacyAnalyzer() *analysis.Analyzer {
+	analyzer := &legacyAnalyzer{}
+	flags := flag.NewFlagSet("legacyAnalyzer", flag.ExitOnError)
 	return newAnalyzer(analyzer.Run, flags)
 }
 
 // Run implements the main analysis pass
-func (a *deferOnlyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
+func (a *legacyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 	pssa, ok := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	if !ok {
 		return nil, nil

@@ -1,10 +1,10 @@
-package pgx
+package negative
 
 import (
 	"log"
 )
 
-func missingCloseTx() {
+func pgxMissingCloseTx() {
 	rows, err := pgxTx.Query(ctx, "SELECT username FROM users") // want "Rows/Stmt/NamedStmt was not closed"
 	if err != nil {
 		log.Fatal(err)
@@ -13,7 +13,7 @@ func missingCloseTx() {
 	_ = rows
 }
 
-func missingCloseConn() {
+func gxMissingCloseConn() {
 	rows, err := pgxConn.Query(ctx, "SELECT username FROM users") // want "Rows/Stmt/NamedStmt was not closed"
 	if err != nil {
 		log.Fatal(err)
@@ -22,7 +22,7 @@ func missingCloseConn() {
 	_ = rows
 }
 
-func missingClosePgxPool() {
+func gxMissingClosePgxPool() {
 	rows, err := pgxPool.Query(ctx, "SELECT username FROM users") // want "Rows/Stmt/NamedStmt was not closed"
 	if err != nil {
 		log.Fatal(err)

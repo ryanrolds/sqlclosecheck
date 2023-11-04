@@ -1,16 +1,17 @@
-package stmt
+package defer_close
 
 import (
 	"database/sql"
 	"log"
 )
 
-func correctDeferBlock() {
+func sqlStmtDeferBlock() {
 	// In normal use, create one Stmt when your process starts.
 	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?")
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer func() {
 		err := stmt.Close()
 		if err != nil {

@@ -1,11 +1,11 @@
-package stmt
+package defer_only
 
 import (
 	"database/sql"
 	"log"
 )
 
-func nonDeferClose() {
+func sqlStmtNonDeferClose() {
 	// In normal use, create one Stmt when your process starts.
 	stmt, err := db.PrepareContext(ctx, "SELECT username FROM users WHERE id = ?")
 	if err != nil {

@@ -13,13 +13,7 @@ func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
 	checker := analyzer.NewAnalyzer()
 
-	packages := []string{
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/rows",
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/stmt",
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/pgx",
-	}
-
-	for _, pkg := range packages {
+	for _, pkg := range legacyTestPackages {
 		pkg := pkg
 
 		t.Run(pkg, func(t *testing.T) {

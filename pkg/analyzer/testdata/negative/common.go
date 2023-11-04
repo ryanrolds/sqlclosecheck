@@ -1,7 +1,9 @@
-package pgx
+package negative
 
 import (
 	"context"
+	"database/sql"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -11,4 +13,6 @@ var (
 	pgxTx   pgx.Tx
 	pgxConn *pgx.Conn
 	pgxPool *pgxpool.Pool
+
+	db *sql.DB
 )

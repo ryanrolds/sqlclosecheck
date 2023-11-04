@@ -7,19 +7,13 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestConfigurableAnalyzerDeferOnly(t *testing.T) {
+func TestConfigurableAnalyzerLegacy(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	checker := analyzer.NewConfigurableAnalyzer(analyzer.ConfigurableAnalyzerDeferOnly)
+	checker := analyzer.NewConfigurableAnalyzer(analyzer.ConfigurableAnalyzerLegacy)
 
-	packages := []string{
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/rows",
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/stmt",
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/pgx",
-	}
-
-	for _, pkg := range packages {
+	for _, pkg := range legacyTestPackages {
 		pkg := pkg
 
 		t.Run(pkg, func(t *testing.T) {
@@ -36,11 +30,7 @@ func XTestConfigurableAnalyzerClosed(t *testing.T) {
 	testdata := analysistest.TestData()
 	checker := analyzer.NewConfigurableAnalyzer(analyzer.ConfigurableAnalyzerClosed)
 
-	packages := []string{
-		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/closed",
-	}
-
-	for _, pkg := range packages {
+	for _, pkg := range closedTestPackages {
 		pkg := pkg
 
 		t.Run(pkg, func(t *testing.T) {

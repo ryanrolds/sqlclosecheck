@@ -10,8 +10,8 @@ import (
 type ConfigurableModeType string
 
 const (
-	ConfigurableAnalyzerDeferOnly ConfigurableModeType = "defer-only"
-	ConfigurableAnalyzerClosed    ConfigurableModeType = "closed"
+	ConfigurableAnalyzerLegacy ConfigurableModeType = "legacy"
+	ConfigurableAnalyzerClosed ConfigurableModeType = "closed"
 )
 
 type ConifgurableAnalyzer struct {
@@ -22,14 +22,14 @@ func NewConfigurableAnalyzer(mode ConfigurableModeType) *analysis.Analyzer {
 	cfgAnalyzer := &ConifgurableAnalyzer{}
 	flags := flag.NewFlagSet("cfgAnalyzer", flag.ExitOnError)
 	flags.StringVar(&cfgAnalyzer.Mode, "mode", string(mode),
-		"Mode to run the analyzer in. (defer-only, closed)")
+		"Mode to run the analyzer in. (legacy, closed)")
 	return newAnalyzer(cfgAnalyzer.run, flags)
 }
 
 func (c *ConifgurableAnalyzer) run(pass *analysis.Pass) (interface{}, error) {
 	switch c.Mode {
-	case string(ConfigurableAnalyzerDeferOnly):
-		analyzer := &deferOnlyAnalyzer{}
+	case string(ConfigurableAnalyzerLegacy):
+		analyzer := &legacyAnalyzer{}
 		return analyzer.Run(pass)
 	case string(ConfigurableAnalyzerClosed):
 		analyzer := &closedAnalyzer{}

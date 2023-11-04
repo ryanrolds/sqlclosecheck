@@ -1,31 +1,38 @@
-package pgx
+package defer_close
 
 import (
 	"log"
 )
 
-func correctDeferTx() {
+func pgxDeferBlockTx() {
 	rows, err := pgxTx.Query(ctx, "SELECT username FROM users")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rows.Close()
+
+	defer func() {
+		rows.Close()
+	}()
 }
 
-func correctDeferConn() {
+func pgxDeferBlockConn() {
 	rows, err := pgxConn.Query(ctx, "SELECT username FROM users")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		rows.Close()
+	}()
 }
 
-func correctDeferPgxPool() {
+func pgxDeferBlockPgxPool() {
 	rows, err := pgxPool.Query(ctx, "SELECT username FROM users")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		rows.Close()
+	}()
 }

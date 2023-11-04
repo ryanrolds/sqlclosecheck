@@ -1,4 +1,4 @@
-package rows
+package returned
 
 import (
 	"database/sql"
@@ -11,6 +11,7 @@ func returnRows() (*sql.Rows, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	return rows, nil
 }
 
