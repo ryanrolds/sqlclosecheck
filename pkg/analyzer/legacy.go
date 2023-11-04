@@ -47,6 +47,10 @@ var (
 	}
 )
 
+// legacyAnalyzer is an analyzer checks for unclosed rows/stmts.
+// This analyzer has organically grown and is not does not implement a coherent
+// approach to checking for unclosed rows/stmts. Over time this analyzer will be
+// improved/refactored or replaced.
 type legacyAnalyzer struct{}
 
 func NewLegacyAnalyzer() *analysis.Analyzer {
@@ -55,7 +59,10 @@ func NewLegacyAnalyzer() *analysis.Analyzer {
 	return newAnalyzer(analyzer.Run, flags)
 }
 
-// Run implements the main analysis pass
+// Run implements the main analysis pass. It iterates over all functions,
+// blocks, and instructions looking for rows/stmts provided by supported
+// packages. If a rows/stmt is found, it scans the referrers for a close call.
+// If a close call is not found, a report is generated.
 func (a *legacyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 	pssa, ok := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	if !ok {
@@ -75,18 +82,18 @@ func (a *legacyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 		for _, b := range f.Blocks {
 			for i := range b.Instrs {
 				// Check if instruction is call that returns a target pointer type
-				targetValues := getTargetTypesValues(b, i, targetTypes)
+				targetValues := getClosableValues(b, i, targetTypes)
 				if len(targetValues) == 0 {
 					continue
 				}
 
 				// For each found target check if they are closed and deferred
 				for _, targetValue := range targetValues {
-					log.Printf("targetValue: %v", *targetValue.value)
+					log.Printf("target value: %v", *targetValue.value)
 
 					refs := (*targetValue.value).Referrers()
 
-					isClosed := checkClosed(refs, targetTypes)
+					isClosed := isClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt/NamedStmt was not closed")
 					}
@@ -100,174 +107,57 @@ func (a *legacyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 	return nil, nil
 }
 
-func getTargetTypes(pssa *buildssa.SSA, targetPackages []string) []any {
-	targets := []any{}
-
-	for _, sqlPkg := range targetPackages {
-		pkg := pssa.Pkg.Prog.ImportedPackage(sqlPkg)
-		if pkg == nil {
-			// the SQL package being checked isn't imported
-			continue
-		}
-
-		rowsPtrType := getTypePointerFromName(pkg, rowsName)
-		if rowsPtrType != nil {
-			targets = append(targets, rowsPtrType)
-		}
-
-		rowsType := getTypeFromName(pkg, rowsName)
-		if rowsType != nil {
-			targets = append(targets, rowsType)
-		}
-
-		stmtType := getTypePointerFromName(pkg, stmtName)
-		if stmtType != nil {
-			targets = append(targets, stmtType)
-		}
-
-		namedStmtType := getTypePointerFromName(pkg, namedStmtName)
-		if namedStmtType != nil {
-			targets = append(targets, namedStmtType)
-		}
-	}
-
-	return targets
-}
-
-func getTypePointerFromName(pkg *ssa.Package, name string) *types.Pointer {
-	pkgType := pkg.Type(name)
-	if pkgType == nil {
-		// this package does not use Rows/Stmt/NamedStmt
-		return nil
-	}
-
-	obj := pkgType.Object()
-	named, ok := obj.Type().(*types.Named)
-	if !ok {
-		return nil
-	}
-
-	return types.NewPointer(named)
-}
-
-func getTypeFromName(pkg *ssa.Package, name string) *types.Named {
-	pkgType := pkg.Type(name)
-	if pkgType == nil {
-		// this package does not use Rows/Stmt
-		return nil
-	}
-
-	obj := pkgType.Object()
-	named, ok := obj.Type().(*types.Named)
-	if !ok {
-		return nil
-	}
-
-	return named
-}
-
-type targetValue struct {
-	value *ssa.Value
-	instr ssa.Instruction
-}
-
-func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []any) []targetValue {
-	targetValues := []targetValue{}
-
-	instr := b.Instrs[i]
-	call, ok := instr.(*ssa.Call)
-	if !ok {
-		return targetValues
-	}
-
-	signature := call.Call.Signature()
-	results := signature.Results()
-	for i := 0; i < results.Len(); i++ {
-		v := results.At(i)
-		varType := v.Type()
-
-		for _, targetType := range targetTypes {
-			var tt types.Type
-
-			switch t := targetType.(type) {
-			case *types.Pointer:
-				tt = t
-			case *types.Named:
-				tt = t
-			default:
-				continue
-			}
-
-			if !types.Identical(varType, tt) {
-				continue
-			}
-
-			for _, cRef := range *call.Referrers() {
-				switch instr := cRef.(type) {
-				case *ssa.Call:
-					if len(instr.Call.Args) >= 1 && types.Identical(instr.Call.Args[0].Type(), tt) {
-						targetValues = append(targetValues, targetValue{
-							value: &instr.Call.Args[0],
-							instr: call,
-						})
-					}
-				case ssa.Value:
-					if types.Identical(instr.Type(), tt) {
-						targetValues = append(targetValues, targetValue{
-							value: &instr,
-							instr: call,
-						})
-					}
-				}
-			}
-		}
-	}
-
-	return targetValues
-}
-
-func checkClosed(refs *[]ssa.Instruction, targetTypes []any) bool {
+// isClosed checks if the target is closed and returns true if it is.
+// Each instruction is checked to see if it's a close call, if it is then
+// we are done and true is returned.
+func isClosed(refs *[]ssa.Instruction, targetTypes []any) bool {
 	// numInstrs := len(*refs)
-	for _, ref := range *refs {
-		log.Printf("checkClosed: %s", ref.String())
+	for idx, ref := range *refs {
+		log.Printf("===== checking ref for close: %d %s", idx, ref.String())
 
 		action := getAction(ref, targetTypes)
-
 		log.Printf("action: %d", action)
 
 		switch action {
-		case actionClosed, actionHandled:
+		case actionClosed: // desired outcome
 			return true
-		case actionReturned:
+		case actionHandled: // what does handled mean? how is it different than closed?
 			return true
-		case actionPassed:
-			// Pass to another function/method, should check what that function/method does
-			// TODO check if the function passed to handles it
-			// blockRefs := ref.Block().Instrs
-			// log.Printf("blockRefs: %v", blockRefs)
+		case actionReturned: // should follow the return value to see if it is closed
+			continue
+		case actionUnhandled:
+			continue
+		case actionPassed: // should follow the passed value to see if it is closed
+		// Pass to another function/method, should check what that function/method does
+		// TODO check if the function passed to handles it
+		// blockRefs := ref.Block().Instrs
+		// log.Printf("blockRefs: %v", blockRefs)
 
-			// This is probably not needed, what the func/method does should be checked
-			// if there isn't any instructions left, then the result of this should be considered
-			// for this branch
-			//
-			// // Passed and not used after
-			// if numInstrs == idx+1 {
-			// 	log.Printf("Passed and not used after")
-			// 	return true
-			// }
-
+		// This is probably not needed, what the func/method does should be checked
+		// if there isn't any instructions left, then the result of this should be considered
+		// for this branch
+		//
+		// // Passed and not used after
+		// if numInstrs == idx+1 {
+		// 	log.Printf("Passed and not used after")
+		// 	return true
+		// }
+		default:
+			log.Printf("unexpected action: %d", action)
 		}
 	}
 
 	return false
 }
 
+// getAction returns the action taken on the target instruction.
 func getAction(instr ssa.Instruction, targetTypes []any) action {
 	log.Printf("getAction: %s %v", instr.String(), instr.Block().Instrs)
 
 	switch instr := instr.(type) {
 	case *ssa.Defer:
 		log.Printf("defer: %s", instr.Call.Value.Name())
+
 		if instr.Call.Value != nil {
 			name := instr.Call.Value.Name()
 			if name == closeMethod {
@@ -284,8 +174,8 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			// If it is a deferred function, go further down the call chain
 			if f, ok := instr.Call.Value.(*ssa.Function); ok {
 				for _, b := range f.Blocks {
-					if checkClosed(&b.Instrs, targetTypes) {
-						return actionHandled
+					if isClosed(&b.Instrs, targetTypes) {
+						return actionClosed
 					}
 				}
 			}
@@ -331,18 +221,22 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 
 			// iterate blocks and check if any of them close the target
 			for _, b := range blocks {
-				if checkClosed(&b.Instrs, targetTypes) {
-					return actionHandled
+				if isClosed(&b.Instrs, targetTypes) {
+					return actionClosed
 				}
 			}
 		}
 
 		return actionUnhandled
 	case *ssa.Phi:
+		log.Printf("Phi: %s", instr.String())
 		return actionPassed
 	case *ssa.MakeInterface:
+		log.Printf("MakeInterface: %s", instr.String())
 		return actionPassed
 	case *ssa.Store:
+		log.Printf("Store: %s", instr.String())
+
 		// A Row/Stmt is stored in a struct, which may be closed later
 		// by a different flow.
 		if _, ok := instr.Addr.(*ssa.FieldAddr); ok {
@@ -357,7 +251,7 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			if c, ok := aRef.(*ssa.MakeClosure); ok {
 				if f, ok := c.Fn.(*ssa.Function); ok {
 					for _, b := range f.Blocks {
-						if checkClosed(&b.Instrs, targetTypes) {
+						if isClosed(&b.Instrs, targetTypes) {
 							return actionHandled
 						}
 					}
@@ -365,6 +259,8 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			}
 		}
 	case *ssa.UnOp:
+		log.Printf("UnOp: %s", instr.String())
+
 		instrType := instr.Type()
 		for _, targetType := range targetTypes {
 			var tt types.Type
@@ -379,17 +275,19 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			}
 
 			if types.Identical(instrType, tt) {
-				if checkClosed(instr.Referrers(), targetTypes) {
+				if isClosed(instr.Referrers(), targetTypes) {
 					return actionHandled
 				}
 			}
 		}
 	case *ssa.FieldAddr:
-		if checkClosed(instr.Referrers(), targetTypes) {
+		log.Printf("FieldAddr: %s", instr.String())
+
+		if isClosed(instr.Referrers(), targetTypes) {
 			return actionHandled
 		}
 	case *ssa.Return:
-		// log.Printf("Return: %s", instr.Results)
+		log.Printf("Return: %s", instr.Results)
 
 		// Check if the return value is a target type
 		if len(instr.Results) != 0 {
@@ -473,21 +371,4 @@ func checkDeferred(pass *analysis.Pass, instrs *[]ssa.Instruction, targetTypes [
 			checkDeferred(pass, instr.Referrers(), targetTypes, inDefer)
 		}
 	}
-}
-
-func isTargetType(t types.Type, targetTypes []any) bool {
-	for _, targetType := range targetTypes {
-		switch tt := targetType.(type) {
-		case *types.Pointer:
-			if types.Identical(t, tt) {
-				return true
-			}
-		case *types.Named:
-			if types.Identical(t, tt) {
-				return true
-			}
-		}
-	}
-
-	return false
 }
