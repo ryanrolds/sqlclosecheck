@@ -218,13 +218,21 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []any) []targetV
 func checkClosed(refs *[]ssa.Instruction, targetTypes []any) bool {
 	numInstrs := len(*refs)
 	for idx, ref := range *refs {
+		log.Printf("CheckClosed: %s %v", ref.String(), ref.Block().Instrs)
+
 		action := getAction(ref, targetTypes)
+
+		log.Printf("Action: %d", action)
+
 		switch action {
-		case actionClosed, actionReturned, actionHandled:
+		case actionClosed, actionHandled:
 			return true
+		case actionReturned:
+			return false
 		case actionPassed:
 			// Passed and not used after
 			if numInstrs == idx+1 {
+				log.Printf("Passed and not used after")
 				return true
 			}
 		}
@@ -337,6 +345,8 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			return actionHandled
 		}
 	case *ssa.Return:
+		log.Printf("Return: %s", instr.Results)
+
 		// Check if the return value is a target type
 		if len(instr.Results) != 0 {
 			for _, result := range instr.Results {
