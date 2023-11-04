@@ -3,6 +3,7 @@ package analyzer
 import (
 	"flag"
 	"go/types"
+	"log"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
@@ -233,6 +234,8 @@ func checkClosed(refs *[]ssa.Instruction, targetTypes []any) bool {
 }
 
 func getAction(instr ssa.Instruction, targetTypes []any) action {
+	log.Printf("GetAction: %s %v", instr.String(), instr.Block().Instrs)
+
 	switch instr := instr.(type) {
 	case *ssa.Defer:
 		if instr.Call.Value != nil {
@@ -260,6 +263,8 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 
 		return actionUnvaluedDefer
 	case *ssa.Call:
+		log.Printf("Call: %s", instr.Call.Value.Name())
+
 		if instr.Call.Value == nil {
 			return actionUnvaluedCall
 		}
@@ -332,6 +337,7 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			return actionHandled
 		}
 	case *ssa.Return:
+		// Check if the return value is a target type
 		if len(instr.Results) != 0 {
 			for _, result := range instr.Results {
 				resultType := result.Type()

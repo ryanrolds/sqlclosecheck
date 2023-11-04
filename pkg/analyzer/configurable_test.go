@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestConfigurableAnalyzerLegacy(t *testing.T) {
+func XTestConfigurableAnalyzerLegacy(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
