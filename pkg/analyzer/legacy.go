@@ -20,13 +20,21 @@ const (
 type action uint8
 
 const (
+	// target not handled (what does handled mean?))
 	actionUnhandled action = iota
+	// target handled (what does handled mean?)
 	actionHandled
+	// target returned by function
 	actionReturned
+	// target passed to function
 	actionPassed
+	// target closed (desired outcome)
 	actionClosed
+	// target unvalledcall (?)
 	actionUnvaluedCall
+	// target unvalued defer (?)
 	actionUnvaluedDefer
+	// noop (?)
 	actionNoOp
 )
 
@@ -74,7 +82,10 @@ func (a *legacyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 
 				// For each found target check if they are closed and deferred
 				for _, targetValue := range targetValues {
+					log.Printf("targetValue: %v", *targetValue.value)
+
 					refs := (*targetValue.value).Referrers()
+
 					isClosed := checkClosed(refs, targetTypes)
 					if !isClosed {
 						pass.Reportf((targetValue.instr).Pos(), "Rows/Stmt/NamedStmt was not closed")
@@ -216,25 +227,35 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []any) []targetV
 }
 
 func checkClosed(refs *[]ssa.Instruction, targetTypes []any) bool {
-	numInstrs := len(*refs)
-	for idx, ref := range *refs {
-		log.Printf("CheckClosed: %s %v", ref.String(), ref.Block().Instrs)
+	// numInstrs := len(*refs)
+	for _, ref := range *refs {
+		log.Printf("checkClosed: %s", ref.String())
 
 		action := getAction(ref, targetTypes)
 
-		log.Printf("Action: %d", action)
+		log.Printf("action: %d", action)
 
 		switch action {
 		case actionClosed, actionHandled:
 			return true
 		case actionReturned:
-			return false
+			return true
 		case actionPassed:
-			// Passed and not used after
-			if numInstrs == idx+1 {
-				log.Printf("Passed and not used after")
-				return true
-			}
+			// Pass to another function/method, should check what that function/method does
+			// TODO check if the function passed to handles it
+			// blockRefs := ref.Block().Instrs
+			// log.Printf("blockRefs: %v", blockRefs)
+
+			// This is probably not needed, what the func/method does should be checked
+			// if there isn't any instructions left, then the result of this should be considered
+			// for this branch
+			//
+			// // Passed and not used after
+			// if numInstrs == idx+1 {
+			// 	log.Printf("Passed and not used after")
+			// 	return true
+			// }
+
 		}
 	}
 
@@ -242,10 +263,11 @@ func checkClosed(refs *[]ssa.Instruction, targetTypes []any) bool {
 }
 
 func getAction(instr ssa.Instruction, targetTypes []any) action {
-	log.Printf("GetAction: %s %v", instr.String(), instr.Block().Instrs)
+	log.Printf("getAction: %s %v", instr.String(), instr.Block().Instrs)
 
 	switch instr := instr.(type) {
 	case *ssa.Defer:
+		log.Printf("defer: %s", instr.Call.Value.Name())
 		if instr.Call.Value != nil {
 			name := instr.Call.Value.Name()
 			if name == closeMethod {
@@ -271,7 +293,8 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 
 		return actionUnvaluedDefer
 	case *ssa.Call:
-		log.Printf("Call: %s", instr.Call.Value.Name())
+		// function/method call
+		log.Printf("Call: %s %s %s", instr.Call.Value.Name(), instr.Call.Value.String(), instr.Call.Value.Type())
 
 		if instr.Call.Value == nil {
 			return actionUnvaluedCall
@@ -282,9 +305,14 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 		if staticCallee != nil {
 			receiver := instr.Call.StaticCallee().Signature.Recv()
 			if receiver != nil {
+				log.Printf("Receiver: %s", receiver.Type().String())
 				isTarget = isTargetType(receiver.Type(), targetTypes)
 			}
+		} else {
+			isTarget = isTargetType(instr.Call.Value.Type(), targetTypes)
 		}
+
+		log.Printf("isTarget: %v %s", isTarget, instr.Call.Value.Name())
 
 		name := instr.Call.Value.Name()
 		if isTarget && name == closeMethod {
@@ -292,8 +320,24 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 		}
 
 		if !isTarget {
-			return actionPassed
+			log.Printf("%v is not a target", instr.Call.Value.Name())
+			staticCallee := instr.Common().StaticCallee()
+			if staticCallee == nil {
+				return actionUnhandled
+			}
+
+			blocks := staticCallee.Blocks
+			log.Printf("Blocks: %v", blocks)
+
+			// iterate blocks and check if any of them close the target
+			for _, b := range blocks {
+				if checkClosed(&b.Instrs, targetTypes) {
+					return actionHandled
+				}
+			}
 		}
+
+		return actionUnhandled
 	case *ssa.Phi:
 		return actionPassed
 	case *ssa.MakeInterface:
@@ -345,7 +389,7 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			return actionHandled
 		}
 	case *ssa.Return:
-		log.Printf("Return: %s", instr.Results)
+		// log.Printf("Return: %s", instr.Results)
 
 		// Check if the return value is a target type
 		if len(instr.Results) != 0 {
