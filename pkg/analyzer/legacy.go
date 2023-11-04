@@ -332,7 +332,27 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			return actionHandled
 		}
 	case *ssa.Return:
-		return actionReturned
+		if len(instr.Results) != 0 {
+			for _, result := range instr.Results {
+				resultType := result.Type()
+				for _, targetType := range targetTypes {
+					var tt types.Type
+
+					switch t := targetType.(type) {
+					case *types.Pointer:
+						tt = t
+					case *types.Named:
+						tt = t
+					default:
+						continue
+					}
+
+					if types.Identical(resultType, tt) {
+						return actionReturned
+					}
+				}
+			}
+		}
 	}
 
 	return actionUnhandled
