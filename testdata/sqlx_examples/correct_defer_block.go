@@ -1,23 +1,21 @@
-package rows
+package sqlx_examples
 
 import (
-	"database/sql"
 	"log"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 func correctDeferBlock() {
 	age := 27
-	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
+	rows, err := db.Queryx("SELECT name FROM users WHERE age=?", age)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	defer func() {
-		err := rows.Close()
-		if err != nil {
-			log.Print("problem closing rows")
-		}
+		rows.Close()
 	}()
 
 	names := make([]string, 0)
@@ -38,16 +36,13 @@ func correctDeferBlock() {
 
 func correctDeferBlockWithParameter() {
 	age := 27
-	rows, err := db.QueryContext(ctx, "SELECT name FROM users WHERE age=?", age)
+	rows, err := db.Queryx("SELECT name FROM users WHERE age=?", age)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer func(rows *sql.Rows) {
-		err := rows.Close()
-		if err != nil {
-			log.Print("problem closing rows")
-		}
+	defer func(rows *sqlx.Rows) {
+		rows.Close()
 	}(rows)
 
 	names := make([]string, 0)

@@ -278,6 +278,11 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 			return actionClosed
 		}
 
+		// the defer closure takes in a parameter, check inside the defer block
+		if _, ok := instr.Call.Value.(*ssa.Parameter); ok && instr.Call.Method.Name() == closeMethod {
+			return actionClosed
+		}
+
 		if !isTarget {
 			return actionPassed
 		}

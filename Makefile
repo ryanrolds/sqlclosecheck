@@ -29,3 +29,5 @@ lint:
 
 clean:
 	rm -rf $(BIN)
+	rm pgx_examples_results.txt
+	rm sqlx_examples_results.txt
