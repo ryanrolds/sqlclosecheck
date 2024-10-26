@@ -1,3 +1,4 @@
 sqlclosecheck
 bin/
 sqlx_examples_results.txt
+pgx_examples_results.txt

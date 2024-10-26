@@ -2,6 +2,8 @@
 testdata/sqlx_examples/failure_generics.go:6:21: Rows/Stmt/NamedStmt was not closed
 testdata/sqlx_examples/failure_generics.go:13:21: Rows/Stmt/NamedStmt was not closed
 testdata/sqlx_examples/missing_close.go:10:24: Rows/Stmt/NamedStmt was not closed
+testdata/sqlx_examples/missing_close_defer.go:12:24: Rows/Stmt/NamedStmt was not closed
+testdata/sqlx_examples/missing_close_defer.go:39:24: Rows/Stmt/NamedStmt was not closed
 testdata/sqlx_examples/missing_close_in_other_func.go:17:26: Rows/Stmt/NamedStmt was not closed
 testdata/sqlx_examples/missing_close_named_stmt.go:8:30: Rows/Stmt/NamedStmt was not closed
 testdata/sqlx_examples/non_defer_close.go:30:12: Close should use defer

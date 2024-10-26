@@ -1,6 +1,6 @@
 BIN := bin
 
-PHONY: build install test
+PHONY: build install test clean
 
 $(BIN):
 	mkdir -p $@
@@ -26,3 +26,7 @@ test: build
 lint:
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.54.1
 	./bin/golangci-lint run
+
+clean:
+	rm -rf $(BIN)
+	rm -f pgx_examples_results.txt sqlx_examples_results.txt

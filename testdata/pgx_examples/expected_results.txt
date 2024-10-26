@@ -2,3 +2,5 @@
 testdata/pgx_examples/missing_close.go:8:26: Rows/Stmt/NamedStmt was not closed
 testdata/pgx_examples/missing_close.go:17:28: Rows/Stmt/NamedStmt was not closed
 testdata/pgx_examples/missing_close.go:26:28: Rows/Stmt/NamedStmt was not closed
+testdata/pgx_examples/missing_close_defer.go:10:26: Rows/Stmt/NamedStmt was not closed
+testdata/pgx_examples/missing_close_defer.go:23:26: Rows/Stmt/NamedStmt was not closed
