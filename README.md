@@ -3,6 +3,10 @@
 Linter that checks if SQL rows/statements are closed. Unclosed rows and statements may
 cause DB connection pool exhaustion. Included in `golangci-lint` as `sqlclosecheck`.
 
+> Contributions are welcome. The original author is around, but this project is not near
+> the top of his priorities. If you're interested taking an active role in the maintence
+> and evolution of this linter, please reach out. Thank you.
+
 ## Analyzers
 
 * `defer-only` - require that Close be deferred
