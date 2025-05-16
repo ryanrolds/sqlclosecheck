@@ -38,7 +38,9 @@ var (
 	}
 )
 
-type deferOnlyAnalyzer struct{}
+type deferOnlyAnalyzer struct {
+	extraPackages []string
+}
 
 func NewDeferOnlyAnalyzer() *analysis.Analyzer {
 	analyzer := &deferOnlyAnalyzer{}
@@ -53,8 +55,12 @@ func (a *deferOnlyAnalyzer) Run(pass *analysis.Pass) (interface{}, error) {
 		return nil, nil
 	}
 
+	pkgs := make([]string, len(sqlPackages)+len(a.extraPackages))
+	copy(pkgs, sqlPackages)
+	copy(pkgs[len(sqlPackages):], a.extraPackages)
+
 	// Build list of types we are looking for
-	targetTypes := getTargetTypes(pssa, sqlPackages)
+	targetTypes := getTargetTypes(pssa, pkgs)
 
 	// If non of the types are found, skip
 	if len(targetTypes) == 0 {
