@@ -9,13 +9,17 @@ import (
 
 // NewAnalyzer returns a non-configurable analyzer that defaults to the defer-only mode.
 // Deprecated, this will be removed in v1.0.0.
-func NewAnalyzer() *analysis.Analyzer {
+func NewAnalyzer(extraPackages []string) *analysis.Analyzer {
 	flags := flag.NewFlagSet("analyzer", flag.ExitOnError)
-	return newAnalyzer(run, flags)
+	return newAnalyzer(func(pass *analysis.Pass) (interface{}, error) {
+		return run(pass, extraPackages)
+	}, flags)
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	opinionatedAnalyzer := &deferOnlyAnalyzer{}
+func run(pass *analysis.Pass, extraPackages []string) (interface{}, error) {
+	opinionatedAnalyzer := &deferOnlyAnalyzer{
+		extraPackages: extraPackages,
+	}
 	return opinionatedAnalyzer.Run(pass)
 }
 
