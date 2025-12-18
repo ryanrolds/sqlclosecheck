@@ -260,6 +260,17 @@ func getAction(instr ssa.Instruction, targetTypes []any) action {
 
 		return actionUnvaluedDefer
 	case *ssa.Call:
+		if instr.Call.Method != nil {
+			receiverType := instr.Call.Value.Type()
+			if isTargetType(receiverType, targetTypes) {
+				if instr.Call.Method.Name() == closeMethod {
+					return actionClosed
+				}
+
+				return actionNoOp
+			}
+		}
+
 		if instr.Call.Value == nil {
 			return actionUnvaluedCall
 		}

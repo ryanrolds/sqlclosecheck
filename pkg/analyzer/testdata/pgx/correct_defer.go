@@ -26,6 +26,10 @@ func correctDeferPgxPool() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	defer rows.Close()
+
+	for rows.Next() {
+		var username string
+		rows.Scan(&username)
+	}
 }

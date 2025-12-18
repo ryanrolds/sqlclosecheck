@@ -28,5 +28,8 @@ func missingClosePgxPool() {
 		log.Fatal(err)
 	}
 
-	_ = rows
+	for rows.Next() {
+		var username string
+		rows.Scan(&username)
+	}
 }
