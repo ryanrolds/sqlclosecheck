@@ -17,6 +17,7 @@ func TestAnalyzer(t *testing.T) {
 		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/rows",
 		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/stmt",
 		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/pgx",
+		"github.com/ryanrolds/sqlclosecheck/pkg/analyzer/testdata/sqlx",
 	}
 
 	for _, pkg := range packages {
