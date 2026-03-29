@@ -190,6 +190,10 @@ func getTargetTypesValues(b *ssa.BasicBlock, i int, targetTypes []any) []targetV
 				continue
 			}
 
+			if call.Referrers() == nil {
+				continue
+			}
+
 			for _, cRef := range *call.Referrers() {
 				switch instr := cRef.(type) {
 				case *ssa.Call:
